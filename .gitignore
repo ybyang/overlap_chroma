@@ -1,0 +1,7 @@
+*.xml*
+*~
+gs8t8*
+output*
+quda
+XMLDAT
+build_quda
