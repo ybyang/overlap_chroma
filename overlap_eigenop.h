@@ -118,6 +118,7 @@ class Overlap_param
                 for(int i=0;i<_chey_size_;i++)
                 {
                 	double prec=0.2*exp(-1.0*i);
+			coef[i].set_HwSize(Noeigen_hw,cut_sq,prec,0.0,0.0);
                 	coef[i].run(cut_sq,prec);
 		}
 	    }
@@ -126,6 +127,11 @@ class Overlap_param
             if(use_gpu>0)
                set_BasicQudaParam(u,quda_inv_param,DEFAULT,false,false,RECONS_12);
             quda_inv_param.kappa=toDouble(kappa);
+	    quda_inv_param.dslash_type=QUDA_OVERLAP_WILSON_DSLASH;
+            quda_inv_param.eigen_size=Noeigen_hw;
+            quda_inv_param.eigen_cut=0.3;
+            quda_inv_param.krylov_space=Noeigen_hw+50;
+            ov_d=newOverlapQuda(&quda_inv_param);
 #endif         	 
     	}
 
@@ -161,7 +167,6 @@ class Overlap_param
 		es(tmp2,tmp1,PLUS);
 		double sc1=2/((1+8*toDouble(kappa))*(1+8*toDouble(kappa))*(1-cut));
 		double sc2=(1+cut)/(1-cut);
-//		print0("(CPU)%13.5f%13.5f ",sc1,sc2);
 		chi = sc1*tmp2-sc2*psi;
 	}
     
@@ -182,7 +187,7 @@ class Overlap_param
 #endif        
 	        Overlap_param ov_param;
 	        PackforQUDA(ov_param);
-	        ApplyOverlapQUDA(spinorOut,spinorIn,&quda_inv_param,k0,k1,k2,prec,(void *)&ov_param);
+		ApplyOverlapQuda(spinorOut,spinorIn,&quda_inv_param,k0,k1,k2,prec,ov_d);
 
              }
              else
@@ -269,10 +274,18 @@ class Overlap_param
     	      
     	}
 
+	~OverlapEigenOperator()
+	{
+#ifdef BUILD_QUDA
+		destroyOverlapQuda(ov_d);
+#endif
+	}
+
     	protected:     
 #ifdef BUILD_QUDA
     		bool use_gpu;
 		QudaInvertParam quda_inv_param;
+		void* ov_d;
 #endif          	        
 		std::string HW_eigen;
 		int Noeigen_hw;

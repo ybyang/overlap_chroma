@@ -1,5 +1,5 @@
-TOPDIR=/home/sunpeng1/soft/bin
-CHROMA=/home/sunpeng1/soft/bin/chroma_gpu_double
+TOPDIR=/public/home/sunpeng/soft/bin
+CHROMA=/public/home/sunpeng/soft/bin/chroma_gpu_double
 CONFIG=./chroma-config
 
 CXX=$(shell $(CONFIG) --cxx) 
@@ -21,6 +21,12 @@ OBJS=chroma.o \
 
 chroma: $(OBJS)
 	$(CXX) -o $@ $(CXXFLAGS) $(OBJS) $(LDFLAGS) $(LIBS)
+
+BUILD_TYPE=build_quda
+PWD_DIR=$(shell pwd)
+
+build:
+	cd $(BUILD_TYPE) && TMPDIR=$(PWD_DIR)/$(BUILD_TYPE)/tmp make -j 8 VERBOSE=1 2>&1 | tee build.log
 
 %.o: %.cc $(HDRS)
 	$(CXX) $(CXXFLAGS) -c $< 

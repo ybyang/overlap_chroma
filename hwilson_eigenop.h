@@ -60,7 +60,7 @@ namespace Chroma
            void* spinorOut = GetMemoryPtr( chi.getId() );
 #endif        
 //             QDPIO::cout << "(GPU)" << "\n";
-             ApplyHWilsonQUDA(spinorOut,spinorIn,&quda_inv_param);
+             ApplyHWilsonQuda(spinorOut,spinorIn,&quda_inv_param);
          }
          else
 #endif
@@ -77,13 +77,37 @@ namespace Chroma
 
     int create_eigen(InlineEigenMakerParams &Params)
     {
-          
+#ifdef BUILD_QUDA
+	    int hw_size=this->size();
+            quda_inv_param.dslash_type=QUDA_OVERLAP_WILSON_DSLASH;
+            quda_inv_param.kappa=toDouble(1.0/(8-2*rho));
+            quda_inv_param.eigen_size=hw_size;
+            quda_inv_param.eigen_cut=0.3;
+            quda_inv_param.krylov_space=hw_size+50;
+
+	    std::vector<void *> evec(hw_size);
+	    std::vector<double> eval(hw_size);
+	    EigenOperator<LatticeFermion> &es=*this;
+            for(int i=0;i<hw_size;i++)
+            {
+#ifndef BUILD_QUDA_DEVIFACE_SPINOR           
+                     void* spinorIn =(void *)&(es[i].vec.elem(0).elem(0).elem(0).real());
+#else
+                     void* spinorIn = GetMemoryPtr( es[i].vec.getId() );
+#endif
+                     evec[i]=spinorIn;
+            }
+            ov_d=newOverlapQuda(&quda_inv_param,evec.data(),eval.data());
+	    for(int i=0;i<hw_size;i++)
+		     es[i].val=eval[i];
+#endif          
     }     
 
   protected:    
 #ifdef BUILD_QUDA
     bool use_gpu;
     QudaInvertParam quda_inv_param;
+    void* ov_d;
 #endif      
     Real rho;
     WilsonDslash D;
