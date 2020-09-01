@@ -154,7 +154,6 @@ namespace Chroma
 				{
                                         Real res=sqrt(norm2(op[ind].vec));
                                         double bias=1.0-res.elem().elem().elem().elem();
-                                        if(Layout::primaryNode())  
                                         (*this)(tmp,op[ind].vec,PLUS);
                                         tmp=tmp-op[ind].val*op[ind].vec;
                                         res=sqrt(norm2(tmp));

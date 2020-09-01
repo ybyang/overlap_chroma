@@ -12,7 +12,9 @@
 #include "hwilson_eigenop.h"
 #include "chebyshev_coeff.h"
 
-#define _time_debug_
+#define print0 if(Layout::primaryNode()) printf
+
+//#define _time_debug_
 
 #define _chey_size_ 30
 
@@ -242,9 +244,8 @@ class Overlap_param
    	    	HwSq_scaled(high,*pbn1,cut_sq_tmp);
     	    	*pbn1 = high - *pbn0 + coef[is][0]*tmp;
     	    	es(high,*pbn1,PLUS);
+#ifdef _time_debug_   
     	    	snoop.stop();
-    	    	
-#ifdef _time_debug_       	    	
     	    	double time_h=snoop.getTimeInSeconds();
     	    	print0("Overlap timer: low %13.4f, high %13.4f\n",time_l, time_h);
 #endif     	    	

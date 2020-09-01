@@ -5,6 +5,7 @@
 
 #include "chroma.h"
 #include "inline_eigen_maker.h"
+#include  "inline_propagator_multi_eigen.h"
 using namespace Chroma;
 using namespace std;
 extern "C" { 
@@ -73,6 +74,7 @@ bool linkageHack(void)
   foo &= GaugeInitEnv::registerAll();
   // My InlineMeasurements, which computes the wall source quark props.
   foo &= InlineEigenMakerEnv::registerAll();
+  foo &= InlinePropagatorMultiEnv::registerAll();
   return foo;
 }
 

@@ -6,3 +6,9 @@ quda
 XMLDAT
 build_quda
 gwu-qcd-ck
+DEADJOE
+Makefile
+chroma*
+files*
+*.o
+test*
