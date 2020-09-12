@@ -12,7 +12,7 @@
 #include "hwilson_eigenop.h"
 #include "chebyshev_coeff.h"
 
-#define _time_debug_
+//#define _time_debug_
 
 #define _chey_size_ 30
 
@@ -172,7 +172,7 @@ class Overlap_param
     
         void general_dov(LatticeFermion& chi, const LatticeFermion& psi,
         	double k0, double k1,double k2,double prec) const
-	{
+		{
 
 #ifdef BUILD_QUDA
              if(use_gpu==true)
@@ -185,9 +185,9 @@ class Overlap_param
                	void* spinorIn = GetMemoryPtr( psi.getId() );
                	void* spinorOut = GetMemoryPtr( chi.getId() );
 #endif        
-	        Overlap_param ov_param;
-	        PackforQUDA(ov_param);
-		ApplyOverlapQuda(spinorOut,spinorIn,&quda_inv_param,k0,k1,k2,prec,ov_d);
+	        	Overlap_param ov_param;
+	        	PackforQUDA(ov_param);
+				ApplyOverlapQuda(spinorOut,spinorIn,&quda_inv_param,k0,k1,k2,prec,ov_d);
 
              }
              else
@@ -242,9 +242,9 @@ class Overlap_param
    	    	HwSq_scaled(high,*pbn1,cut_sq_tmp);
     	    	*pbn1 = high - *pbn0 + coef[is][0]*tmp;
     	    	es(high,*pbn1,PLUS);
-    	    	snoop.stop();
     	    	
-#ifdef _time_debug_       	    	
+#ifdef _time_debug_
+				snoop.stop();       	    	
     	    	double time_h=snoop.getTimeInSeconds();
     	    	print0("Overlap timer: low %13.4f, high %13.4f\n",time_l, time_h);
 #endif     	    	
@@ -271,19 +271,30 @@ class Overlap_param
     	
     	int create_eigen(InlineEigenMakerParams &Params)
     	{
-    	      
+    		Complex ctemp0;
+        	T vectemp;
+        	EigenOperator<T> &es=*this;
+        	int conv =  arnoldi_eigensystem(Params,kappa,-1);
+			reconstruct();
+        	for(int i=0;i<Noeigen;i++){
+            	es(vectemp,es[i].vec,PLUS);
+            	ctemp0 = innerProduct(es[i].vec,vectemp);
+            	es[i].val.elem().elem().elem().real() = ctemp0.elem().elem().elem().real();
+            	es[i].val.elem().elem().elem().imag() = ctemp0.elem().elem().elem().imag();
+        	}
+        	return Noeigen;     
     	}
 
-	~OverlapEigenOperator()
-	{
+		~OverlapEigenOperator()
+		{	
 #ifdef BUILD_QUDA
-		destroyOverlapQuda(ov_d);
+			destroyOverlapQuda(ov_d);
 #endif
-	}
+		}
 
     	protected:     
 #ifdef BUILD_QUDA
-    		bool use_gpu;
+    	bool use_gpu;
 		QudaInvertParam quda_inv_param;
 		void* ov_d;
 #endif          	        

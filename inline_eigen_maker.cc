@@ -349,8 +349,8 @@ namespace Chroma
              //TODO:create the eigensystem;
              eigen->create_eigen(params);
              QDPIO::cout << "to save.."<< std::endl;
-             exit(0);
-             std::string name=params.param.filename+".test";
+             //exit(0);
+             std::string name=params.param.filename;
              eigen->save(name);
          }
     }

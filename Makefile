@@ -3,7 +3,7 @@ CHROMA=/public/home/sunpeng/soft/bin/chroma_gpu_double
 CONFIG=./chroma-config
 
 CXX=$(shell $(CONFIG) --cxx) 
-CXXFLAGS=$(shell $(CONFIG) --cxxflags) 
+CXXFLAGS=$(shell $(CONFIG) --cxxflags) "-w"
 #CXXFLAGS=-D_PDF_ $(shell $(CONFIG) --cxxflags) -I$(TOPDIR)/qla/include -I. $(MGCXXFLAGS) 
 LDFLAGS=$(shell $(CONFIG) --ldflags) 
 LIBS=$(shell $(CONFIG) --libs) 

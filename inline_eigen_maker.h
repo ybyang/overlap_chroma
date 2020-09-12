@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include "util/ferm/diractodr.h"
 #include "util/ferm/transf.h"
+#include "Eigen/Dense"
 
 
 
@@ -131,6 +132,494 @@ namespace Chroma
 				KYToDRMat();
 			}
 
+			//eigen maker start			
+			void remap(LatticeFermion& chi, const LatticeFermion& psi){
+				EigenOperator<T> &es=*this;
+				es(chi,psi,PLUS);
+				if(chirality == 0) es(chi,chi,PLUS);
+				else chi = (chi+chirality*(Gamma(15)*chi))/2;
+				double factor = 1/(max_eigen-cut_eigen);
+				chi = 2*factor*chi - factor*(max_eigen+cut_eigen)*psi;	
+			}
+
+			void chebyshev_Hw(LatticeFermion& chi, const LatticeFermion& psi){
+				int degree = order;
+				LatticeFermion rt0;
+				LatticeFermion rt1;
+				LatticeFermion rt2;
+				rt0 = psi;
+				LatticeFermion *t0 = &rt0;
+				LatticeFermion *t1 = &rt1;
+				LatticeFermion *t2 = &rt2;
+				remap(*t1,*t0);
+				while(degree > 1){
+					remap(*t2,*t1);
+					*t2 = 2 * (*t2) - *t0;
+    				LatticeFermion *tmp = t1;
+    				t1 = t2;
+    				t2 = t0;
+    				t0 = tmp;
+    				--degree;
+				}
+				chi = *t1;
+			}
+
+	int arnoldi_eigensystem(InlineEigenMakerParams &Params, Real kappa, int chiral=0)
+    {	
+		StopWatch shijian;
+    	shijian.reset();
+   	 	shijian.start();
+
+		chirality = chiral;
+		if(chirality == 0) error = 1e-14;
+		else error = 1e-11;
+        	dim = Params.param.extra_space +  Params.param.Noeigen;
+        	Noeigen = Params.param.Noeigen;
+		if(chirality == 0){
+			cut_eigen = pow(Params.param.chebyshev_cut,2);
+			max_eigen = pow(1+8*kappa.elem().elem().elem().elem(),2);
+		}
+		else{
+			cut_eigen = Params.param.chebyshev_cut;
+			max_eigen = 8 - 1/kappa.elem().elem().elem().elem();
+		}
+		order = Params.param.chebyshev_order;
+
+        TOLERANCE = 1.0e-15;
+		LOCK_THRESHOLD = 1.0e-20;
+        Maxiteration = 10000;
+        MINFILTER = 5;
+        symflag = true;
+
+        H.resize(dim,dim);
+        for(int i=0;i<dim;i++){
+            for(int j=0;j<dim;j++){
+                H(i,j)=0;
+            }
+        }
+        Qv.resize(dim);
+        valtemp.resize(dim);
+        Index.resize(dim);
+        for(int i=0;i<dim;i++){
+            Index[i]=i;
+        }
+        random(b);
+		if(chirality != 0) b=(b+chirality*(Gamma(15)*b))/2;
+
+		EigenOperator<T> &es=*this;
+		int converge,iteration,iNlocked,iNtolock,iNbuffer;
+		iNlocked = 0;
+		iNbuffer = 0;
+		double normb,proof;
+		ctemp1 = 1;
+		ctemp2 = 1;
+		bool yn = false;
+		int nvec = 0;
+		converge = arnoldi_factorization(nvec,dim);
+		shijian.stop();
+		QDPIO::cout << "initial arnoldi factorization" << ": total time = "
+                	<< shijian.getTimeInSeconds()
+                	<< " secs" << std::endl;
+		if(converge == dim){
+			iteration = dim - nvec;
+			for(;;){
+				//main loop
+
+				//step1
+				shijian.reset();
+				shijian.start();
+				take_matrix(dim-iNlocked,dim-iNlocked,iNlocked,iNlocked);
+				eigensystem();
+				for(int i=0;i<dim-iNlocked;i++){
+					valtemp[i] = Htemp(i,i);
+					Index[i] = i;
+				}
+				eigsort(0,dim-1-iNlocked);
+				for(int i=0; i<dim-iNlocked; i++){ 
+      				//if(Layout::primaryNode() && chirality != 0) printf("e[%4d] = %18.10le + i %18.10le \t %d\n", i, valtemp[Index[i]].real(), valtemp[Index[i]].imag(), Index[i]);
+				}
+				shijian.stop();
+				QDPIO::cout << "main loop step1" << ": total time = "
+                			<< shijian.getTimeInSeconds()
+                			<< " secs" << std::endl;
+
+				//step2
+				shijian.reset();
+				shijian.start();
+				normb = RealD(sqrt(norm2(b))).elem().elem().elem().elem();
+				converge = 0;
+				iNtolock = 0;
+				for(int i=0;i<Noeigen-iNlocked;i++){
+					proof = normb * abs(Temp(dim-1-iNlocked,Index[i]));
+					if(proof < error*abs(valtemp[Index[i]])) converge++;
+					if(proof < LOCK_THRESHOLD) iNtolock++;
+					//if(Layout::primaryNode() && chirality != 0) printf("res[%4d] = %18.10le crit = %18.10le normb = %18.10le error = %18.10le\n", i, proof, error * abs(valtemp[Index[i]]), normb, error);
+				}
+				if(Layout::primaryNode() && chirality != 0) printf("Converged=%10d, Iteration=%10d\n",converge+iNlocked,iteration);
+				if(converge == Noeigen-iNlocked){
+					converge += iNlocked;
+					break;
+				}
+				if(iteration >= Maxiteration){
+					converge += iNlocked;
+					converge *= -1;
+					break;
+				}
+				shijian.stop();
+                QDPIO::cout << "main loop step2" << ": total time = "
+                            << shijian.getTimeInSeconds()
+                            << " secs" << std::endl;
+
+				//step3
+				shijian.reset();
+				shijian.start();
+				iNtolock = 0;
+				if(dim-Noeigen-iNbuffer-iNtolock >= MINFILTER) iNbuffer += iNtolock;
+				else iNbuffer = dim-Noeigen-MINFILTER;
+				Temp.resize(dim,dim);
+				for(int i=0;i<dim;i++){
+					for(int j=0;j<dim;j++){
+						if(i==j) Temp(i,j) = 1;
+						else Temp(i,j) = 0;
+					}
+				}
+				for(int i=0;i<dim-Noeigen-iNbuffer;i++){
+					for(int iCol=0;iCol<dim;iCol++) H(iCol,iCol) -= valtemp[Index[dim-1-i-iNlocked]];
+					QR(true,dim);
+					for(int iCol=0;iCol<dim;iCol++) H(iCol,iCol) += valtemp[Index[dim-1-i-iNlocked]];
+				}
+				iNlocked += iNtolock;
+				vm_multiply(dim,Noeigen+1+iNbuffer);
+				ctemp1.elem().elem().elem().real()= H(Noeigen+iNbuffer,Noeigen-1+iNbuffer).real();
+				ctemp1.elem().elem().elem().imag()= H(Noeigen+iNbuffer,Noeigen-1+iNbuffer).imag();
+				ctemp2.elem().elem().elem().real()= Temp(dim-1,Noeigen-1+iNbuffer).real();
+                ctemp2.elem().elem().elem().imag()= Temp(dim-1,Noeigen-1+iNbuffer).imag();
+				b = ctemp1*Qv[Noeigen+iNbuffer] + ctemp2*b;
+				shijian.stop();
+                QDPIO::cout << "main loop step3" << ": total time = "
+                            << shijian.getTimeInSeconds()
+                            << " secs" << std::endl;
+
+				//step4
+				shijian.reset();
+				shijian.start();
+				int num = arnoldi_factorization(Noeigen+iNbuffer,dim);
+				if(num!=dim) {yn=true;break;}
+				iteration += Noeigen-iNbuffer;
+				shijian.stop();
+                QDPIO::cout << "main loop step4" << ": total time = "
+                            << shijian.getTimeInSeconds()
+                            << " secs" << std::endl;
+				//main loop
+			}
+		}
+		else yn = true;
+
+		take_matrix(dim,dim,0,0);
+		eigensystem();
+		for(int i=0;i<dim;i++){
+			valtemp[i]=Htemp(i,i);
+			Index[i]=i;
+		}
+		eigsort(0,dim-1);
+
+		shijian.reset();
+		shijian.start();
+		vm_multiply(dim,Noeigen);
+		shijian.stop();
+        QDPIO::cout << "vector rotation" << ": total time = "
+                    << shijian.getTimeInSeconds()
+                    << " secs" << std::endl;
+		
+		for(int i=0;i<Noeigen;i++){
+			es[i].vec=Qv[Index[i]];
+		}
+
+		if(Layout::primaryNode()) printf("\nconverge=%d \n",converge);
+		if(yn) return 0;
+		else return converge;
+	}
+
+	int arnoldi_factorization(int indx,int num){
+		EigenOperator<T> &es=*this;
+		double beta,nrm;
+		int start;
+
+		if(indx == 0){
+			beta = RealD(sqrt(norm2(b))).elem().elem().elem().elem();
+			if(beta < TOLERANCE) return 0;
+			Qv[0] = b/beta;
+			chebyshev_Hw(b,Qv[0]);
+			ctemp1 = innerProduct(Qv[0],b);
+			H(0,0).real(ctemp1.elem().elem().elem().real());
+			H(0,0).imag(ctemp1.elem().elem().elem().imag());
+			b = b - ctemp1*Qv[0];
+		}
+		else indx--;
+
+		beta = RealD(sqrt(norm2(b))).elem().elem().elem().elem();
+		for(int i=indx;i<num-1;i++){
+			if(beta < TOLERANCE) return i+1;
+			Qv[i+1] = b/beta;
+			H(i+1,i) = beta;
+			chebyshev_Hw(b,Qv[i+1]);
+			nrm = RealD(sqrt(norm2(b))).elem().elem().elem().elem();
+			if(symflag) start=i;
+			else start=0;
+			for(int j=start;j<i+2;j++){
+				ctemp1 = innerProduct(Qv[j],b);
+				H(j,i+1).real(ctemp1.elem().elem().elem().real());
+				H(j,i+1).imag(ctemp1.elem().elem().elem().imag());
+				b = b - ctemp1*Qv[j];
+			}
+			beta = RealD(sqrt(norm2(b))).elem().elem().elem().elem();
+
+			if(beta < 0.717*nrm){
+				for(int j=0;j<i+2;j++){
+					ctemp1 = innerProduct(Qv[j],b);
+					ctemp3.real(ctemp1.elem().elem().elem().real());
+					ctemp3.imag(ctemp1.elem().elem().elem().imag());
+					H(j,i+1) += ctemp3;
+					b = b - ctemp1*Qv[j];
+				}
+				beta = RealD(sqrt(norm2(b))).elem().elem().elem().elem();
+			}
+		}
+		return num;
+	}
+
+	void QR(bool flag, int iDim){
+		Eigen::MatrixXcd pcH;
+		if(flag) pcH = H;
+		else pcH = Htemp;
+		Eigen::VectorXcd pcR11(iDim-1),pcR12(iDim-1),pcR21(iDim-1),pcR22(iDim-1);
+		std::complex<double> cT11, cT12, cT21, cT22, cTemp1, cTemp2, cTemp3, cU1, cU2;
+		double dV;
+
+		for(int iRow = 0; iRow < iDim-1; iRow++){
+    		if (abs(pcH(iRow+1,iRow)) < TOLERANCE){
+      			pcR11(iRow) = 0;
+				pcR12(iRow) = 0;
+				pcR21(iRow) = 0;
+				pcR22(iRow) = 0;
+      			pcH(iRow+1,iRow) = 0;
+      			continue;
+    		}
+
+    		dV = sqrt(std::norm(pcH(iRow,iRow)) + std::norm(pcH(iRow+1,iRow)));
+    		cU1 = pcH(iRow,iRow);
+    		dV = (cU1.real()>0) ? dV : -dV;
+    		cU1 += dV;
+    		cU2 = pcH(iRow+1,iRow);
+
+    		cT11 = std::conj(cU1);
+    		cT11 /= dV;
+    		pcR11(iRow) = std::conj(cT11);
+
+    		cT12 = std::conj(cU2);
+    		cT12 /= dV;
+    		pcR12(iRow) = std::conj(cT12);
+    
+    		cT21 = std::conj(cT12);
+    		cTemp1 = std::conj(cU1);
+    		cTemp1 /= cU1;
+    		cT21 *= cTemp1;
+    		pcR21(iRow) = std::conj(cT21);
+
+    		cTemp1 = cU2 / cU1;
+    		cT22 = cT12 * cTemp1;
+    		pcR22(iRow) = std::conj(cT22);
+
+    		cTemp1 = pcH(iRow,iRow);
+    		cTemp2 = cT11 * cTemp1;
+    		cTemp3 = cT12 * pcH(iRow+1,iRow);
+    		cTemp2 += cTemp3;
+    		pcH(iRow,iRow) -= cTemp2;
+    		pcH(iRow+1,iRow) = 0;
+
+    		for(int iCol=iRow+1; iCol < iDim; iCol++){
+				cTemp1 = pcH(iRow,iCol);
+				cTemp2 = cT11 * cTemp1;
+				cTemp2 += cT12 * pcH(iRow+1,iCol);
+				pcH(iRow,iCol) -= cTemp2;
+
+				cTemp2 = cT21 * cTemp1;
+				cTemp2 += cT22 * pcH(iRow+1,iCol);
+				pcH(iRow+1,iCol) -= cTemp2;
+    		}
+		}
+
+  		for(int iCol = 0; iCol < iDim - 1; iCol++){
+  			if(abs(pcR11(iCol)) > TOLERANCE){
+    			for(int iRow = 0; iRow < iCol+2; iRow++){
+      				cTemp1 = pcH(iRow,iCol);
+      				cTemp2 = pcR11(iCol) * cTemp1;
+      				cTemp2 += pcR12(iCol) * pcH(iRow,iCol+1);
+      				pcH(iRow,iCol) -= cTemp2;
+
+      				cTemp2 = pcR21(iCol) * cTemp1;
+      				cTemp2 += pcR22(iCol) * pcH(iRow,iCol+1);
+      				pcH(iRow,iCol+1) -= cTemp2;
+    			}
+
+    			for(int iRow = 0; iRow < iDim; iRow++){
+      				cTemp1 = Temp(iRow,iCol);
+      				cTemp2 = pcR11(iCol) * cTemp1;
+      				cTemp2 += pcR12(iCol) * Temp(iRow,iCol+1);
+      				Temp(iRow,iCol) -= cTemp2;
+
+      				cTemp2 = pcR21(iCol) * cTemp1;
+      				cTemp2 += pcR22(iCol) * Temp(iRow,iCol+1);
+      				Temp(iRow,iCol+1) -= cTemp2;
+    			}
+  			}
+		}
+		if(flag) H = pcH;
+		else Htemp = pcH;
+	}
+
+	void eigensystem(){
+		int idim = Htemp.row(0).size();
+		std::complex<double> cTemp,cDiscr,cDist1,cDist2,cEigen;
+		int iterations = 0;
+		for(int iCol=idim-2;iCol>-1;iCol--){
+			for(;iterations<Maxiteration;iterations++){
+				if(abs(Htemp(iCol+1,iCol))<TOLERANCE){
+					Htemp(iCol+1,iCol)=0;
+					break;
+				}
+				cTemp = Htemp(iCol,iCol)-Htemp(iCol+1,iCol+1);
+				cTemp *= cTemp;
+				cTemp /= 4;
+
+				cDiscr = Htemp(iCol+1,iCol)*Htemp(iCol,iCol+1);
+				cDiscr += cTemp;
+				cDiscr = sqrt(cDiscr);
+				cTemp = Htemp(iCol,iCol) + Htemp(iCol+1,iCol+1);
+				cTemp /= 2;
+				cDist1 = cTemp + cDiscr;
+				cDist1 = cDist1 - Htemp(iCol+1,iCol+1);
+				cDist2 = cTemp - cDiscr;
+				cDist2 = cDist2 - Htemp(iCol+1,iCol+1);
+				if(abs(cDist1)<abs(cDist2)) cEigen = cDist1 + Htemp(iCol+1,iCol+1);
+				else cEigen = cDist2 + Htemp(iCol+1,iCol+1);
+
+				for(int iRow=0;iRow<idim;iRow++){
+					Htemp(iRow,iRow) -= cEigen;
+				}
+				QR(false,idim);
+
+				for(int iRow=0;iRow<idim;iRow++){
+					Htemp(iRow,iRow) += cEigen;
+				}
+
+			}
+		}
+		if(Layout::primaryNode()) printf("\nsmall eigensystem iterations=%d \n",iterations);
+	}
+
+	void take_matrix(int lx,int ly,int x0,int y0){
+		Htemp.resize(lx,ly);
+		Temp.resize(lx,ly);
+		for(int i=x0;i<lx;i++){
+			for(int j=y0;j<ly;j++){
+				Htemp(i,j) = H(i,j);
+				if(i==j) Temp(i,j) = 1;
+				else Temp(i,j) = 0;
+			}
+		}
+	}
+
+	void swap(int i, int j){
+		int temp;
+		temp = Index[i];
+		Index[i] = Index[j];
+		Index[j] = temp;
+	}
+
+	void eigsort(int left, int right){
+		int last;
+
+		if(left>=right) return;
+
+		swap(left,(left+right)/2);
+		last=left;
+		for(int i=left+1;i<=right;i++){
+			if(abs(valtemp[Index[i]])>abs(valtemp[Index[left]])) swap(++last,i);
+		}
+
+		swap(left,last);
+		eigsort(left,last-1);
+		eigsort(last+1,right);
+	}
+	
+	void vm_multiply(int idim,int icol){
+		std::vector<T> ssr = Qv;
+		for(int j=0;j<icol;j++){
+			for(int i=0;i<idim;i++){
+				ctemp1.elem().elem().elem().real() = Temp(i,Index[j]).real();
+            	ctemp1.elem().elem().elem().imag() = Temp(i,Index[j]).imag();
+				if(i==0) Qv[Index[j]] = ctemp1*ssr[i];
+				else Qv[Index[j]] += ctemp1*ssr[i];
+			}
+		}
+	}
+
+	void reconstruct(){
+		StopWatch shijian;
+        shijian.reset();
+        shijian.start();
+		EigenOperator<T> &es=*this;
+		LatticeFermion vecTemp,vecTemp2;
+		double ZEROMODE = 5e-11;
+		int offset = 0;
+		//determine the number of zero modes
+		do{
+			es(vecTemp, es[offset].vec, PLUS);
+			es[offset].val = innerProduct(es[offset].vec, vecTemp);
+		}
+		while(es[offset++].val.elem().elem().elem().real() < ZEROMODE);
+		offset--;
+		//determine chirality
+		vecTemp = Gamma(15)*es[0].vec;
+		chirality = innerProduct(es[0].vec, vecTemp).elem().elem().elem().real()>0?1:-1;
+		if(Layout::primaryNode()) printf("chirality is %d\n",chirality);
+		//get full vec
+		for(int i=0; i<Noeigen-offset; i++){
+			// Compute |temp> = D|vec>
+			es(vecTemp, es[i+offset].vec, PLUS);
+			// Compute the partner of |vec> (opposite chirality partner) and normalize it
+			vecTemp2 = (vecTemp-chirality*(Gamma(15)*vecTemp))/2;
+			vecTemp2 /= RealD(sqrt(norm2(vecTemp2)));
+			// Determine the multiplication factor
+			ctemp1 = innerProduct(vecTemp2, vecTemp);
+			ctemp3.real(ctemp1.elem().elem().elem().real());
+			ctemp3.imag(ctemp1.elem().elem().elem().imag());
+			ctemp3 = ctemp3/std::abs(ctemp3);
+			ctemp2.elem().elem().elem().real() = ctemp3.imag();
+			ctemp2.elem().elem().elem().imag() = ctemp3.real();
+			// Determine the eigenvectors
+			es[offset+i].vec = vecTemp2 + ctemp2*es[offset+i].vec;
+		}
+		//normalize
+		for(int i=0; i<Noeigen-offset; i++){
+			es[offset+i].vec /= RealD(sqrt(norm2(es[offset+i].vec)));
+		}
+		//Reorthogonalize
+		for(int i=0;i<Noeigen;i++){
+			for(int j=0;j<i;j++){
+				ctemp1 = innerProduct(es[j].vec, es[i].vec);
+				es[i].vec -= ctemp1*es[j].vec;
+			}
+			es[i].vec /= RealD(sqrt(norm2(es[i].vec)));
+		}
+		shijian.stop();
+		QDPIO::cout << "reconstruct" << ": total time = "
+                    << shijian.getTimeInSeconds()
+                    << " secs" << std::endl;
+	}
+//eigen maker end
+
 			const std::string &get_fermact()
 			{
 				return fermact_id;
@@ -152,20 +641,16 @@ namespace Chroma
 				EigenOperator<T> &op=*this;
 				for(int ind=0;ind<this->size();ind++)
 				{
-                                        Real res=sqrt(norm2(op[ind].vec));
-                                        double bias=1.0-res.elem().elem().elem().elem();
-                                        if(Layout::primaryNode())  
-                                        (*this)(tmp,op[ind].vec,PLUS);
-                                        tmp=tmp-op[ind].val*op[ind].vec;
-                                        res=sqrt(norm2(tmp));
-					if(Layout::primaryNode()) 
-					{
-						printf("Norm evec[%4d] bias = %13.5e ", ind, bias);
-						printf(" eval[%4d] = %11.8f + I %10.8f, ||lambda vec - mat vec|| = %10.5e\n",
-								ind,toDouble(real(op[ind].val)),
-								toDouble(imag(op[ind].val)),
-								toDouble(res));
-					}
+                    Real res=sqrt(norm2(op[ind].vec));
+                    double bias=1.0-res.elem().elem().elem().elem();
+                    (*this)(tmp,op[ind].vec,PLUS);
+                    tmp=tmp-op[ind].val*op[ind].vec;
+                    res=sqrt(norm2(tmp));
+					if(Layout::primaryNode()) printf("Norm evec[%4d] bias = %13.5e ", ind, bias);
+					if(Layout::primaryNode()) printf(" eval[%4d] = %11.8f + I %10.8f, ||lambda vec - mat vec|| = %10.5e\n",
+						ind,toDouble(real(op[ind].val)),
+						toDouble(imag(op[ind].val)),
+						toDouble(res));
 				
 				}
 			}
@@ -184,9 +669,12 @@ namespace Chroma
 				//eigen=multi1d<int,EigenPair<LatticeFermion>>
 				//Residues[]=    //the array of residuals
 
-				//eigenvalue    
+				//eigenvalue
+				StopWatch shijian;
+        		shijian.reset();
+        		shijian.start();    
 				EigenOperator<T> &eigen=*this;
-				if(Layout::primaryNode()) 
+//				if(Layout::primaryNode()) 
 				{
 					std::string file_eval=filename+".eigvals";
 					fprintf(stderr,"Saving eigensysterm ...\n");
@@ -233,9 +721,11 @@ namespace Chroma
 							write(bin,tmp);
 						}
 					}
-				}//end i  
-				QDPIO::cout <<std::endl;
-
+				}//end i  				
+				shijian.stop();
+                QDPIO::cout << "save" << ": total time = "
+                            << shijian.getTimeInSeconds()
+                            << " secs" << std::endl;
 			}
 
 
@@ -243,6 +733,9 @@ namespace Chroma
 
 			void load(std::string filename, bool from_single=true)
 			{
+				StopWatch shijian;
+        		shijian.reset();
+        		shijian.start();
 				//load eigenvalues
 				std::string file_eval=filename+".eigvals";
 
@@ -293,7 +786,10 @@ namespace Chroma
 					eigen[i].vec=U*f;
 					RealD res=sqrt(norm2(f));
 				}//end i
-				QDPIO::cout <<std::endl;
+				shijian.stop();
+                QDPIO::cout << "load" << ": total time = "
+                            << shijian.getTimeInSeconds()
+                            << " secs" << std::endl;
 
 			}//end load
 
@@ -329,6 +825,24 @@ namespace Chroma
 			Handle<FermState<T,P,Q> > fs;
 			Handle<FermBC<T,P,Q> > bc;
 			std::string fermact_id;
+
+			//variables for eigenmaker
+			double error,max_eigen,cut_eigen;
+			int dim,Noeigen,order;
+	
+			double LOCK_THRESHOLD,TOLERANCE;
+			int MINFILTER,Maxiteration,chirality;
+			bool symflag;
+
+			std::vector<LatticeFermion> Qv;
+			LatticeFermion b;
+			Eigen::MatrixXcd H;
+			Eigen::MatrixXcd Htemp;
+			Eigen::MatrixXcd Temp;
+			std::vector<int> Index;
+			std::vector<std::complex<double>> valtemp;
+			Complex ctemp1,ctemp2;
+			std::complex<double> ctemp3;
 	};
 
 	//-----------------------------------//
