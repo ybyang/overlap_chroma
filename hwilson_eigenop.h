@@ -122,15 +122,15 @@ namespace Chroma
 #endif
 	}     
 
-  protected:    
+	protected:    
 #ifdef BUILD_QUDA
-    bool use_gpu;
-    QudaInvertParam quda_inv_param;
-    void* ov_d;
+    	bool use_gpu;
+    	QudaInvertParam quda_inv_param;
+    	void* ov_d;
 #endif      
-    Real rho,kappa;
-    WilsonDslash D;
-  };
+    	Real rho,kappa;
+    	WilsonDslash D;
+	};
 
 }
 #endif
