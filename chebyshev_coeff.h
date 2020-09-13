@@ -48,7 +48,6 @@ public:
 			a = tmp;
 		}
 		return zz*a-b+data()[0];
-
 	}
 
 	double chebpoly(double zz, Eigen::VectorXd cc){
@@ -88,35 +87,35 @@ public:
 	}
 
       	//Calculate the polynomial order needed for given residual goal err
-      	int get_order()
-      	{
-        	int n=int( -log(prec/.4)/(2.05*sqrt(eps)));
-//        	while(compute_delta(lmin, lmax, n) > err) n+=n/100;
-			N=n;
-			resize(N+1);
-			if(compute_coef()){
-				n--;
-				for(;;){
-					N=n;
-					resize(N+1);
-					if(compute_coef()) n--;
-					else return n+1;
-				}
+	int get_order()
+	{
+		int n=int( -log(prec/.4)/(2.05*sqrt(eps)));
+//		while(compute_delta(lmin, lmax, n) > err) n+=n/100;
+		N=n;
+		resize(N+1);
+		if(compute_coef()){
+			n--;
+			for(;;){
+				N=n;
+				resize(N+1);
+				if(compute_coef()) n--;
+				else return n+1;
 			}
-			else{
-				n++;
-				for(;;){
-					N=n;
-					resize(N+1);
-					if(compute_coef()) return n;
-					else n++;
-				}
+		}
+		else{
+			n++;
+			for(;;){
+				N=n;
+				resize(N+1);
+				if(compute_coef()) return n;
+				else n++;
 			}
-      	}
+		}
+	}
 
-      	//Calculate the coefficients with given polynomial order n in the range [lmin, lmax]. 
-      	bool compute_coef()
-      	{
+	//Calculate the coefficients with given polynomial order n in the range [lmin, lmax]. 
+	bool compute_coef()
+    {
 		Eigen::VectorXd y(N+1);
 		Eigen::Map<Eigen::VectorXd> c(data(), N+1, 1);
 
@@ -173,7 +172,7 @@ public:
 			}
 		}
 		return true;
-      	}
+	}
 
 public:
 
@@ -208,44 +207,44 @@ public:
 		return hwSize;
 	}
 
-        void set_HwSize(int size, double _lmin=1.0, double _prec=1.0, double t1=0.0, double t2=0.0){
-                if(t1<1e-6||t2<1e-6) {
-                        hwSize=size;
-                        return;
-                } 
-                double fac=pow(t1*log(_prec/.4)/(2.05*size*t2),2);
-                if(fac>_lmin||size==0) fac=_lmin;
-                hwSize=(int)(pow(fac/_lmin,0.25)*size);
-                if(hwSize<1) hwSize=1;
-        }
+	void set_HwSize(int size, double _lmin=1.0, double _prec=1.0, double t1=0.0, double t2=0.0){
+		if(t1<1e-6||t2<1e-6) {
+			hwSize=size;
+			return;
+		} 
+		double fac=pow(t1*log(_prec/.4)/(2.05*size*t2),2);
+		if(fac>_lmin||size==0) fac=_lmin;
+		hwSize=(int)(pow(fac/_lmin,0.25)*size);
+		if(hwSize<1) hwSize=1;
+	}
 	
-      	chebyshev_coef(){hwSize=-1;}
+	chebyshev_coef(){hwSize=-1;}
 
 	chebyshev_coef(double _lmin, double _prec,bool print=false):prec(_prec),eps(_lmin)
-      	{
-        	N = get_order();
-        	if(print==true) print0("N=%d\n",N);
-        	resize(N+1);
-        	compute_coef();
+	{
+		N = get_order();
+		if(print==true) print0("N=%d\n",N);
+		resize(N+1);
+		compute_coef();
 
-        	if(print==true)
+		if(print==true)
 		{
-        		print0("--------------------------------------------\n");
-        		for(int i=0; i<size(); i+=5){
-        			for(int j=0;j<5;j++)
-        			if(i+j<size())
-	        			print0("c[%4d]=%20.10e ",i+j, data()[i+j]);
-        			print0("\n");
-        		}
-        		print0("\nlmin: %.2e lmax: %g error: %.2e order: %zu\n", _lmin, 1.0, prec, size());
-        		print0("--------------------------------------------\n\n");
-        		print0("y			1-|y/sqrt(y^2)|\n");
-        		for(double y=_lmin/2;y<2;y*=1.1){
-    				double res=residual(y);
-    				int flag=abs(fabs(res)<prec)?1:0;
-    				print0("%20.15e %13.5e%2d\n",y,res,flag);
-        		}  
-        	}    	
-     	}
+        	print0("--------------------------------------------\n");
+        	for(int i=0; i<size(); i+=5){
+        		for(int j=0;j<5;j++)
+        		if(i+j<size())
+	        		print0("c[%4d]=%20.10e ",i+j, data()[i+j]);
+        		print0("\n");
+        	}
+        	print0("\nlmin: %.2e lmax: %g error: %.2e order: %zu\n", _lmin, 1.0, prec, size());
+        	print0("--------------------------------------------\n\n");
+        	print0("y			1-|y/sqrt(y^2)|\n");
+        	for(double y=_lmin/2;y<2;y*=1.1){
+    			double res=residual(y);
+    			int flag=abs(fabs(res)<prec)?1:0;
+    			print0("%20.15e %13.5e%2d\n",y,res,flag);
+        	}  
+        }    	
+     }
 };
 

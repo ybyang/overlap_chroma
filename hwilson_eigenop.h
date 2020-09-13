@@ -19,9 +19,9 @@
 namespace Chroma 
 { 
 
-  class HwilsonEigenOperator: public EigenOperator<LatticeFermion>
-  {
-  public:
+	class HwilsonEigenOperator: public EigenOperator<LatticeFermion>
+	{
+	public:
      
     typedef LatticeFermion               T;
     typedef multi1d<LatticeColorMatrix>  P;
@@ -29,37 +29,36 @@ namespace Chroma
     
     HwilsonEigenOperator(GroupXML_t &fermact,multi1d<LatticeColorMatrix> &u,int neig=0):EigenOperator<LatticeFermion>(fermact,u,neig)
     {
-         //read param;
-         std::istringstream  is(fermact.xml);
-         XMLReader  paramtop(is);
-         read(paramtop,"Kappa",kappa);
-         rho = 4-0.5/kappa;
+    	//read param;
+		std::istringstream  is(fermact.xml);
+		XMLReader  paramtop(is);
+		read(paramtop,"Kappa",kappa);
+		rho = 4-0.5/kappa;
          
 #ifdef BUILD_QUDA
-         read(paramtop,"use_gpu",use_gpu);
-         if(use_gpu>0)
-               set_BasicQudaParam(u,quda_inv_param,DEFAULT,false,false,RECONS_12);
-         quda_inv_param.kappa=toDouble(kappa);
+		read(paramtop,"use_gpu",use_gpu);
+		if(use_gpu>0)
+			set_BasicQudaParam(u,quda_inv_param,DEFAULT,false,false,RECONS_12);
+		quda_inv_param.kappa=toDouble(kappa);
 #endif         
-
-         AnisoParam_t anisoParam;
-         D.create(fs,anisoParam);
+		AnisoParam_t anisoParam;
+		D.create(fs,anisoParam);
     }
      
     void operator()(LatticeFermion& chi, const LatticeFermion& psi, enum PlusMinus isign) const
-    {
+    {	
 #ifdef BUILD_QUDA
          if(use_gpu==true)
          {
 #ifndef BUILD_QUDA_DEVIFACE_SPINOR           
-           void* spinorIn =(void *)&(psi.elem(0).elem(0).elem(0).real());
-           void* spinorOut =(void *)&(chi.elem(0).elem(0).elem(0).real());
+         	void* spinorIn =(void *)&(psi.elem(0).elem(0).elem(0).real());
+         	void* spinorOut =(void *)&(chi.elem(0).elem(0).elem(0).real());
 #else
-           void* spinorIn = GetMemoryPtr( psi.getId() );
-           void* spinorOut = GetMemoryPtr( chi.getId() );
+         	void* spinorIn = GetMemoryPtr( psi.getId() );
+         	void* spinorOut = GetMemoryPtr( chi.getId() );
 #endif        
-//             QDPIO::cout << "(GPU)" << "\n";
-             ApplyHWilsonQuda(spinorOut,spinorIn,&quda_inv_param);
+//          QDPIO::cout << "(GPU)" << "\n";
+            ApplyHWilsonQuda(spinorOut,spinorIn,&quda_inv_param);
          }
          else
 #endif
@@ -84,8 +83,8 @@ namespace Chroma
         	for(int i=0;i<Noeigen;i++){
             	es(vectemp,es[i].vec,PLUS);
             	ctemp0 = innerProduct(es[i].vec,vectemp);
-            	es[i].val.elem().elem().elem().real() = ctemp0.elem().elem().elem().real();
-            	es[i].val.elem().elem().elem().imag() = ctemp0.elem().elem().elem().imag();
+            	es[i].val.elem().elem().elem().real() = toDouble(real(ctemp0));
+            	es[i].val.elem().elem().elem().imag() = toDouble(imag(ctemp0));
         	}
         	return Noeigen;
 		}
