@@ -12,63 +12,57 @@
 #include "meas/inline/abs_inline_measurement.h"
 #include "io/qprop_io.h"
 
-namespace Chroma 
-{ 
-  /*! \ingroup inlinehadron */
-  namespace InlinePropagatorMultiEnv 
-  {
-    extern const std::string name;
-    bool registerAll();
-  }
+namespace Chroma {
+/*! \ingroup inlinehadron */
+namespace InlinePropagatorMultiEnv {
+extern const std::string name;
+bool registerAll();
+}
 
-  //! Parameter structure
-  /*! \ingroup inlinehadron */ 
-  struct InlinePropagatorMultiParams 
-  {
-    InlinePropagatorMultiParams();
-    InlinePropagatorMultiParams(XMLReader& xml_in, const std::string& path);
-    void writeXML(XMLWriter& xml_out, const std::string& path);
+//! Parameter structure
+/*! \ingroup inlinehadron */
+struct InlinePropagatorMultiParams {
+  InlinePropagatorMultiParams();
+  InlinePropagatorMultiParams(XMLReader &xml_in, const std::string &path);
+  void writeXML(XMLWriter &xml_out, const std::string &path);
 
-    unsigned long     frequency;
+  unsigned long frequency;
 
-    ChromaProp_t      param;
-    
-    multi1d<Real>  mass;
+  ChromaProp_t param;
 
-    struct NamedObject_t
-    {
-      std::string     gauge_id;
-      std::string     source_id;
-      multi1d<std::string>  prop_id;
-    } named_obj;
+  multi1d<Real> mass;
 
-    std::string xml_file;  // Alternate XML file pattern
-  };
+  struct NamedObject_t {
+    std::string gauge_id;
+    std::string source_id;
+    std::string eigen_id;
+    std::string op_id;
+    multi1d<std::string> prop_id;
+  } named_obj;
 
-  //! Inline propagator calculation
-  /*! \ingroup inlinehadron */
-  class InlinePropagatorMulti : public AbsInlineMeasurement 
-  {
-  public:
-    ~InlinePropagatorMulti() {}
-    InlinePropagatorMulti(const InlinePropagatorMultiParams& p) : params(p) {}
-    InlinePropagatorMulti(const InlinePropagatorMulti& p) : params(p.params) {}
+  std::string xml_file; // Alternate XML file pattern
+};
 
-    unsigned long getFrequency(void) const {return params.frequency;}
+//! Inline propagator calculation
+/*! \ingroup inlinehadron */
+class InlinePropagatorMulti : public AbsInlineMeasurement {
+public:
+  ~InlinePropagatorMulti() {}
+  InlinePropagatorMulti(const InlinePropagatorMultiParams &p) : params(p) {}
+  InlinePropagatorMulti(const InlinePropagatorMulti &p) : params(p.params) {}
 
-    //! Do the measurement
-    void operator()(const unsigned long update_no,
-		    XMLWriter& xml_out); 
+  unsigned long getFrequency(void) const { return params.frequency; }
 
-  protected:
-    //! Do the measurement
-    void func(const unsigned long update_no,
-	      XMLWriter& xml_out); 
+  //! Do the measurement
+  void operator()(const unsigned long update_no, XMLWriter &xml_out);
 
-  private:
-    InlinePropagatorMultiParams params;
-  };
+protected:
+  //! Do the measurement
+  void func(const unsigned long update_no, XMLWriter &xml_out);
 
+private:
+  InlinePropagatorMultiParams params;
+};
 }
 
 #endif

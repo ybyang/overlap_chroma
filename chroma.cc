@@ -5,31 +5,28 @@
 
 #include "chroma.h"
 #include "inline_eigen_maker.h"
+#include "inline_propagator_multi_eigen.h"
 using namespace Chroma;
 using namespace std;
-extern "C" { 
- void _mcleanup();
+extern "C" {
+void _mcleanup();
 };
 
 /*
- * Input 
+ * Input
  */
-struct Params_t
-{
-  multi1d<int>    nrow;
-  std::string     inline_measurement_xml;
+struct Params_t {
+  multi1d<int> nrow;
+  std::string inline_measurement_xml;
 };
 
-struct Inline_input_t
-{
-  Params_t        param;
-  GroupXML_t      cfg;
-  QDP::Seed       rng_seed;
+struct Inline_input_t {
+  Params_t param;
+  GroupXML_t cfg;
+  QDP::Seed rng_seed;
 };
 
-
-void read(XMLReader& xml, const std::string& path, Params_t& p) 
-{
+void read(XMLReader &xml, const std::string &path, Params_t &p) {
   XMLReader paramtop(xml, path);
   read(paramtop, "nrow", p.nrow);
 
@@ -41,31 +38,25 @@ void read(XMLReader& xml, const std::string& path, Params_t& p)
   QDPIO::cout << p.inline_measurement_xml << endl;
 }
 
-
-void read(XMLReader& xml, const std::string& path, Inline_input_t& p) 
-{
+void read(XMLReader &xml, const std::string &path, Inline_input_t &p) {
   try {
     XMLReader paramtop(xml, path);
-      
+
     read(paramtop, "Param", p.param);
     p.cfg = readXMLGroup(paramtop, "Cfg", "cfg_type");
 
     if (paramtop.count("RNG") > 0)
       read(paramtop, "RNG", p.rng_seed);
     else
-      p.rng_seed = 11;     // default seed
+      p.rng_seed = 11; // default seed
   }
-  catch( const std::string& e ) 
-  {
+  catch (const std::string &e) {
     QDPIO::cerr << "Error reading XML : " << e << endl;
     QDP_abort(1);
   }
 }
 
- 
-
-bool linkageHack(void)
-{
+bool linkageHack(void) {
   bool foo = true;
 
   // Inline Measurements
@@ -73,6 +64,7 @@ bool linkageHack(void)
   foo &= GaugeInitEnv::registerAll();
   // My InlineMeasurements, which computes the wall source quark props.
   foo &= InlineEigenMakerEnv::registerAll();
+  foo &= InlinePropagatorMultiEnv::registerAll();
   return foo;
 }
 
@@ -83,11 +75,10 @@ bool linkageHack(void)
  * Main program to run all measurement codes.
  */
 
-int main(int argc, char *argv[]) 
-{
+int main(int argc, char *argv[]) {
   // Chroma Init stuff
   Chroma::initialize(&argc, &argv);
-  
+
   START_CODE();
 
   QDPIO::cout << "Linkage = " << linkageHack() << endl;
@@ -99,29 +90,26 @@ int main(int argc, char *argv[])
   XMLReader xml_in;
 
   // Input parameter structure
-  Inline_input_t  input;
-  try
-  {
+  Inline_input_t input;
+  try {
     xml_in.open(Chroma::getXMLInputFileName());
     read(xml_in, "/chroma", input);
   }
-  catch(const std::string& e) 
-  {
+  catch (const std::string &e) {
     QDPIO::cerr << "CHROMA: Caught Exception reading XML: " << e << endl;
     QDP_abort(1);
   }
-  catch(std::exception& e) 
-  {
-    QDPIO::cerr << "CHROMA: Caught standard library exception: " << e.what() << endl;
+  catch (std::exception &e) {
+    QDPIO::cerr << "CHROMA: Caught standard library exception: " << e.what()
+                << endl;
     QDP_abort(1);
   }
-  catch(...)
-  {
+  catch (...) {
     QDPIO::cerr << "CHROMA: caught generic exception reading XML" << endl;
     QDP_abort(1);
   }
 
-  XMLFileWriter& xml_out = Chroma::getXMLOutputInstance();
+  XMLFileWriter &xml_out = Chroma::getXMLOutputInstance();
   push(xml_out, "chroma");
 
   // Write out the input
@@ -130,11 +118,11 @@ int main(int argc, char *argv[])
   Layout::setLattSize(input.param.nrow);
   Layout::create();
 
-  proginfo(xml_out);    // Print out basic program info
+  proginfo(xml_out); // Print out basic program info
 
   // Initialise the RNG
   QDP::RNG::setrn(input.rng_seed);
-  write(xml_out,"RNG", input.rng_seed);
+  write(xml_out, "RNG", input.rng_seed);
 
   // Start up the config
   StopWatch swatch;
@@ -145,130 +133,114 @@ int main(int argc, char *argv[])
   // Start up the gauge field
   QDPIO::cout << "Attempt to read gauge field" << endl;
   swatch.start();
-  try 
-  {
-    std::istringstream  xml_c(input.cfg.xml);
-    XMLReader  cfgtop(xml_c);
+  try {
+    std::istringstream xml_c(input.cfg.xml);
+    XMLReader cfgtop(xml_c);
     QDPIO::cout << "Gauge initialization: cfg_type = " << input.cfg.id << endl;
 
-    Handle< GaugeInit >
-      gaugeInit(TheGaugeInitFactory::Instance().createObject(input.cfg.id,
-							     cfgtop,
-							     input.cfg.path));
+    Handle<GaugeInit> gaugeInit(TheGaugeInitFactory::Instance().createObject(
+        input.cfg.id, cfgtop, input.cfg.path));
     (*gaugeInit)(gauge_file_xml, gauge_xml, u);
   }
-  catch(std::bad_cast) 
-  {
+  catch (std::bad_cast) {
     QDPIO::cerr << "CHROMA: caught cast error" << endl;
     QDP_abort(1);
   }
-  catch(std::bad_alloc) 
-  { 
+  catch (std::bad_alloc) {
     // This might happen on any node, so report it
     cerr << "CHROMA: caught bad memory allocation" << endl;
     QDP_abort(1);
   }
-  catch(const std::string& e) 
-  {
+  catch (const std::string &e) {
     QDPIO::cerr << "CHROMA: Caught Exception: " << e << endl;
     QDP_abort(1);
   }
-  catch(std::exception& e) 
-  {
-    QDPIO::cerr << "CHROMA: Caught standard library exception: " << e.what() << endl;
+  catch (std::exception &e) {
+    QDPIO::cerr << "CHROMA: Caught standard library exception: " << e.what()
+                << endl;
     QDP_abort(1);
   }
-  catch(...)
-  {
+  catch (...) {
     // This might happen on any node, so report it
     cerr << "CHROMA: caught generic exception during gaugeInit" << endl;
     QDP_abort(1);
   }
   swatch.stop();
 
-  QDPIO::cout << "Gauge field successfully read: time= " 
-	      << swatch.getTimeInSeconds() 
-	      << " secs" << endl;
+  QDPIO::cout << "Gauge field successfully read: time= "
+              << swatch.getTimeInSeconds() << " secs" << endl;
 
   XMLBufferWriter config_xml;
   config_xml << gauge_xml;
 
   // Write out the config header
   write(xml_out, "Config_info", gauge_xml);
-  
+
   // Calculate some gauge invariant observables
   MesPlq(xml_out, "Observables", u);
 
   // Get the measurements
-  try 
-  {
+  try {
     std::istringstream Measurements_is(input.param.inline_measurement_xml);
     XMLReader MeasXML(Measurements_is);
-    multi1d < Handle< AbsInlineMeasurement > > the_measurements;
+    multi1d<Handle<AbsInlineMeasurement> > the_measurements;
     read(MeasXML, "/InlineMeasurements", the_measurements);
 
-    QDPIO::cout << "There are " << the_measurements.size() << " measurements " << endl;
+    QDPIO::cout << "There are " << the_measurements.size() << " measurements "
+                << endl;
 
     // Reset and set the default gauge field
     InlineDefaultGaugeField::reset();
     InlineDefaultGaugeField::set(u, config_xml);
 
-    // Measure inline observables 
+    // Measure inline observables
     push(xml_out, "InlineObservables");
     xml_out.flush();
 
-    QDPIO::cout << "Doing " << the_measurements.size() 
-		<<" measurements" << endl;
+    QDPIO::cout << "Doing " << the_measurements.size() << " measurements"
+                << endl;
     swatch.start();
     unsigned long cur_update = 0;
-    for(int m=0; m < the_measurements.size(); m++) 
-    {
-      AbsInlineMeasurement& the_meas = *(the_measurements[m]);
-      if( cur_update % the_meas.getFrequency() == 0 ) 
-      {
-	// Caller writes elem rule
-	push(xml_out, "elem");
-	the_meas(cur_update, xml_out);
-	pop(xml_out); 
+    for (int m = 0; m < the_measurements.size(); m++) {
+      AbsInlineMeasurement &the_meas = *(the_measurements[m]);
+      if (cur_update % the_meas.getFrequency() == 0) {
+        // Caller writes elem rule
+        push(xml_out, "elem");
+        the_meas(cur_update, xml_out);
+        pop(xml_out);
 
-	xml_out.flush();
+        xml_out.flush();
       }
     }
     swatch.stop();
 
-    QDPIO::cout << "CHROMA measurements: time= " 
-		<< swatch.getTimeInSeconds() 
-		<< " secs" << endl;
-
+    QDPIO::cout << "CHROMA measurements: time= " << swatch.getTimeInSeconds()
+                << " secs" << endl;
 
     pop(xml_out); // pop("InlineObservables");
 
     // Reset the default gauge field
     InlineDefaultGaugeField::reset();
   }
-  catch(std::bad_cast) 
-  {
+  catch (std::bad_cast) {
     QDPIO::cerr << "CHROMA: caught cast error" << endl;
     QDP_abort(1);
   }
-  catch(std::bad_alloc) 
-  { 
+  catch (std::bad_alloc) {
     // This might happen on any node, so report it
     cerr << "CHROMA: caught bad memory allocation" << endl;
     QDP_abort(1);
   }
-  catch(const std::string& e) 
-  {
+  catch (const std::string &e) {
     QDPIO::cerr << "CHROMA: Caught Exception: " << e << endl;
     QDP_abort(1);
   }
-  catch(std::exception& e) 
-  {
-    QDPIO::cerr << "CHROMA: Caught standard library exception: " << e.what() << endl;
+  catch (std::exception &e) {
+    QDPIO::cerr << "CHROMA: Caught standard library exception: " << e.what()
+                << endl;
     QDP_abort(1);
   }
-  catch(...)
-  {
+  catch (...) {
     // This might happen on any node, so report it
     cerr << "CHROMA: caught generic exception during measurement" << endl;
     QDP_abort(1);
@@ -276,9 +248,8 @@ int main(int argc, char *argv[])
   pop(xml_out);
 
   snoop.stop();
-  QDPIO::cout << "CHROMA: total time = "
-	      << snoop.getTimeInSeconds() 
-	      << " secs" << endl;
+  QDPIO::cout << "CHROMA: total time = " << snoop.getTimeInSeconds() << " secs"
+              << endl;
 
   QDPIO::cout << "CHROMA: ran successfully" << endl;
 
@@ -287,4 +258,3 @@ int main(int argc, char *argv[])
   Chroma::finalize();
   exit(0);
 }
-

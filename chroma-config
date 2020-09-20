@@ -1,0 +1,266 @@
+#!/bin/sh
+
+# chroma-config
+#
+# Inspired by qdp++-config from George T. Fleming
+#
+# Tool for retrieving configuration information about the installed version
+# of QDP.
+#
+# This script was copied from the qdp++-config. The latter was
+# inspired by many similar scripts available in RedHat Linux,
+# including gnome-config, gtk-config and xmms-config.
+#
+# Be on the lookout for problems with undesirable CXXFLAGS and LDFLAGS
+# propagating through this script.  Send email to flemingg@jlab.org
+# if you find such a problem.
+
+prefix="/public/home/sunpeng/soft/bin/chroma_gpu_double"
+exec_prefix="${prefix}"
+exec_prefix_set=no
+
+version="3.43.0"
+
+extra_libs="-lqdp-lapack"
+sse_dslash_enabled="yes"
+cpp_dslash_enabled="no"
+qopdp_mg_enabled="yes"
+mgproto_enabled=""
+
+case $mgproto_enabled in
+yes)
+	extra_libs=" $extra_libs"
+	;;
+*)
+;;
+esac
+
+case $sse_dslash_enabled in
+yes)
+	extra_libs="$extra_libs -llevel3"
+	;;
+*)
+	;;
+esac
+
+case $cpp_dslash_enabled in 
+yes)
+	extra_libs="$extra_libs -ldslash"
+	;;
+*)
+	;;
+esac
+
+
+cg_dwf_enabled=""
+case $cg_dwf_enabled in
+yes)
+	extra_libs="$extra_libs -lcg-dwf"
+	;;
+*)
+	;;
+esac
+
+case $qopdp_mg_enabled in
+yes)
+	extra_libs="$extra_libs  -lwilsonmg -lqopqdp -lqdp_common -lqdp_int -lqdp_f -lqdp_d -lqdp_df -lqdp_f2 -lqdp_d2 -lqdp_df2 -lqdp_f3 -lqdp_d3 -lqdp_df3 -lqdp_fn -lqdp_dn -lqdp_dfn -lqio -llime -lqla_c99 -lqla_cmath -lqla_d2 -lqla_d3 -lqla_d -lqla_df2 -lqla_df3 -lqla_df -lqla_dfn -lqla_dn -lqla_dq2 -lqla_dq3 -lqla_dq -lqla_dqn -lqla_f2 -lqla_f3 -lqla_f -lqla_fn -lqla_int -lqla_q2 -lqla_q3 -lqla_q -lqla_qn -lqla_random"
+	mg_ld_flags="-L/public/home/sunpeng/soft/bin/qla/lib -L/public/home/sunpeng/soft/bin/qdp/lib -L/public/home/sunpeng/soft/bin/qopqdp/lib"
+	mg_cxx_flags="-I/public/home/sunpeng/soft/bin/qla/include -I/include"
+	;;
+*)
+	mg_ld_flags=""
+	mg_cxx_flags=""
+	;;
+esac
+
+quda_path="/public/home/ybyang/soft/cuda/build_quda"
+
+chroma_cxx="mpicxx"
+chroma_cxxflags="-fopenmp -D_REENTRANT -g -std=c++11 -O3 -mfpmath=sse -ffast-math -funroll-loops -fprefetch-loop-arrays -fomit-frame-pointer -ftree-vectorize -fassociative-math -fpermissive -I${prefix}/include -fopenmp -D_REENTRANT -std=c++11 -O3 -mfpmath=sse -ffast-math -funroll-loops -fprefetch-loop-arrays -fomit-frame-pointer -ftree-vectorize -fassociative-math -I/public/home/sunpeng/soft/bin/qdpxx_double/include -I/usr/include/libxml2 -I/public/home/sunpeng/soft/bin/qmp/include      -I${quda_path}/include -I/public/software/compiler/cuda/10.0.130//include  "$mg_cxx_flags
+
+chroma_ldflags=" -L${exec_prefix}/lib  -L/public/home/sunpeng/soft/bin/qdpxx_double/lib -L/public/home/sunpeng/soft/bin/qmp/lib     -L/public/software/compiler/cuda/10.0.130//lib64 -L/public/software/compiler/cuda/10.0.130//lib64/stubs -L${quda_path}/lib -Wl,-rpath,/public/software/compiler/cuda/10.0.130//lib64 -Wl,-rpath,${quda_path}/lib  "$mg_ld_flags
+
+chroma_libs="-lchroma "$extra_libs" -lqdp -lXPathReader -lxmlWriter -lqio -llime -lxml2 -lz -lm -ldl -lqmp -lqmp -lintrin -lfiledb -lfilehash     -lquda -lcublas /public/software/compiler/cuda/10.0.130//lib64/stubs/libcuda.so -lcudadevrt -lcudart_static -lrt -lpthread -ldl   " 
+
+mdwf_enabled=""
+case ${mdwf_enabled} in
+yes) 
+	chroma_cxxflags=${chroma_cxxflags}" "
+	chroma_ldflags=${chroma_ldflags}" "
+	chroma_libs=${chroma_libs}" "
+	;;
+*)
+	;;
+esac
+
+precision="double"
+
+chroma_ranlib="ranlib"
+chroma_ar="ar"
+
+usage()
+{
+  cat <<EOF
+Usage: chroma-config [OPTIONS]
+Options:
+  [--prefix[=DIR]]
+  [--exec-prefix[=DIR]]
+  [--version]
+  [--Nd]
+  [--Nc]
+  [--Ns]
+  [--parallel-arch]
+  [--precision]
+  [--cxx]
+  [--cxxflags]
+  [--ldflags]
+  [--libs]
+  [--ranlib]
+  [--ar]
+
+EOF
+  exit $1
+}
+
+if test $# -eq 0; then
+  usage 1 1>&2
+fi
+
+while test $# -gt 0; do
+  case "$1" in
+    -*=*) optarg=`echo "$1" | sed 's/[-_a-zA-Z0-9]*=//'` ;;
+    *)    optarg= ;;
+  esac
+
+  case $1 in
+    --prefix=*)
+      prefix=$optarg
+      if test $exec_prefix_set = no ; then
+        exec_prefix=$optarg
+      fi
+      ;;
+
+    --prefix)
+      echo_prefix=yes
+      ;;
+
+    --exec-prefix=*)
+      exec_prefix=$optarg
+      exec_prefix_set=yes
+      ;;
+
+    --exec-prefix)
+      echo_exec_prefix=yes
+      ;;
+
+    --version)
+      echo $version
+      ;;
+
+    --Nd)
+      echo 4
+      ;;
+
+    --Nc)
+      echo 3
+      ;;
+
+    --Ns)
+      echo 4
+      ;;
+
+    --parallel-arch)
+      echo parscalar
+      ;;
+
+    --cxx)
+      echo $chroma_cxx
+      ;;
+
+    --cxxflags)
+      echo_cxxflags=yes
+      ;;
+
+    --ldflags)
+      echo_ldflags=yes
+      ;;
+
+    --libs)
+      echo_libs=yes
+      ;;
+
+    --precision)
+	  echo ${precision}
+      ;;
+    --layout)
+       echo ${layout}
+       ;;
+    --ranlib)
+       echo ${chroma_ranlib}
+       ;;
+    --ar)
+       echo ${chroma_ar}
+       ;;
+    *)
+      usage 1 1>&2
+      ;;
+
+  esac
+  shift
+done
+
+if test "X${echo_prefix}X" = "XyesX" ; then
+  echo $prefix
+fi
+
+if test "X${echo_exec_prefix}X" = "XyesX" ; then
+  echo $exec_prefix
+fi
+
+if test "X${echo_cxxflags}X" = "XyesX" ; then
+  output_cxxflags=
+  for i in $chroma_cxxflags ; do
+    case $i in
+      -I/usr/include) ;;
+      -g) ;;
+#     -O*) ;;
+#     -W*) ;;
+      *)
+        case " $output_cxxflags " in
+          *\ $i\ *) ;;                             # already there, skip it
+          *) output_cxxflags="$output_cxxflags $i" # add it to output
+        esac
+    esac
+  done
+  echo $output_cxxflags
+fi
+
+if test "X${echo_ldflags}X" = "XyesX" ; then
+  output_ldflags=
+  for i in $chroma_ldflags ; do
+    if test "X${i}X" != "X-I/usr/libX" ; then
+      case " $output_ldflags " in
+        *\ $i\ *) ;;                               # already there, skip it
+        *) output_ldflags="$output_ldflags $i"     # add it to output
+      esac
+    fi
+  done
+  echo $output_ldflags
+fi
+
+# Straight out any possible duplicates, but be careful to
+# get `-lfoo -lbar -lbaz' for `-lfoo -lbaz -lbar -lbaz'
+# NONONO!!! DON'T DO THIS. SOMETIMES you need a -l twice
+if test "X${echo_libs}X" = "XyesX" ; then
+  rev_libs=
+  for i in $chroma_libs ; do
+    rev_libs="$i $rev_libs"
+  done
+  output_libs=
+  for i in $rev_libs ; do
+    case " $output_libs " in
+      *) output_libs="$i $output_libs" ;;  # add it to output in reverse order
+    esac
+  done
+  echo $output_libs
+fi
