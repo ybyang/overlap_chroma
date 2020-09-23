@@ -20,6 +20,8 @@
 #include "overlap_eigenop.h"
 #include "util/ferm/transf.h"
 #include <complex.h>
+
+//#include "RHQCD/Include/RH_qcd.h"
 namespace Chroma {
 namespace InlinePropagatorMultiEnv {
 namespace {
@@ -160,6 +162,8 @@ void deflation_ov(multi1d<EigenPair<LatticeFermion> > &es,
       src_tmp[iIndex] = source[iIndex];
       for (int i = 0; i < es.size(); i++) {
         DComplex alpha = innerProduct(es[i].vec, src_tmp[iIndex]);
+        QDPIO::cout << "iIndex=" << iIndex << "\t i=" << i
+                    << "\talpha=" << alpha << std::endl;
         src_tmp[iIndex] = src_tmp[iIndex] - alpha * es[i].vec;
         vec_tmp = Gamma(Ns * Ns - 1) * es[i].vec;
         alpha = innerProduct(vec_tmp, src_tmp[iIndex]);
@@ -471,6 +475,7 @@ int inverter_h(OverlapEigenOperator &ov,
                LatticePropagator &source, multi1d<LatticeFermion> &prop,
                multi1d<Real> &masses, int max_iter, double cg_err,
                int one_minus_halfD) {
+  // note that we assumed that prop has been initialized
   StopWatch swatch;
   swatch.reset();
   swatch.start();
@@ -517,9 +522,9 @@ int inverter_h(OverlapEigenOperator &ov,
 
 Complex inv(const Complex &lam, Real m, Real rho, int one_minus_halfD = 1) {
   if (one_minus_halfD > 0) {
-    return (1.0 - lam / 2.0) / (rho * lam + m * (1.0 - lam / 2.0));
+    return (1.0 - lam / (2.0 * rho)) / (lam + m * (1.0 - lam / (2.0 * rho)));
   } else {
-    return 1.0 / (rho * lam + m * (1.0 - lam / 2.0));
+    return 1.0 / (lam + m * (1.0 - lam / (2.0 * rho)));
   }
 }
 
@@ -557,29 +562,10 @@ void inverter_l(multi1d<EigenPair<LatticeFermion> > &es,
       int iIndex = c + 3 * d;
       for (int i = 0; i < es.size(); i++) {
         DComplex coef = innerProduct(es[i].vec, src[iIndex]);
-        // QDPIO::cout<<"iIndex="<<iIndex<<"\ti="<<i<<"\tcoef="<<coef<<"\t
-        // rho="<<rho<<std::endl;
-        // QDPIO::cout<<"norm(es[i].vec)="<<innerProduct(es[i].vec,es[i].vec)<<"\t
-        // norm2(es[i].vec)="<<norm2(es[i].vec)
-        //<<"norm(src)="<<sqrt(norm2(src[iIndex]))<<std::endl;
         for (int im = 0; im < nmass; im++) {
           prop[iIndex + im * 12] =
               prop[iIndex + im * 12] +
               coef * inv(es[i].val, mass[im], rho, one_minus_halfD) * es[i].vec;
-          /*
-            QDPIO::cout << "i=" << i << "\t"
-                        << "iIndex=" << iIndex << "\t"
-                        << "coef=" << coef << "inv="
-                        << inv(es[i].val, mass[im], rho, one_minus_halfD)
-                        << std::endl;
-            QDPIO::cout << "Latter Inverter_l: i= " << i
-                        << "the norm of propagator"
-                        << "\t"
-                        << "iIndex=" << iIndex << "\t"
-            <<sqrt(norm2(prop[iIndex]))
-                        << "\t"
-                        << "norm2(es[i])=" << norm2(es[i].vec) << std::endl;
-          */
         }
         // TODO  es.prec?
         // This condition juged if it is zero mode
@@ -592,16 +578,12 @@ void inverter_l(multi1d<EigenPair<LatticeFermion> > &es,
 
         src_tmp = Gamma(Ns * Ns - 1) * es[i].vec;
         coef = innerProduct(src_tmp, src[iIndex]);
-        /*
-        QDPIO::cout << "i=" << i << "\t"
-                    << "iIndex=" << iIndex << "\t"
-                    << "norm2(src_tmp,src)=" << coef << std::endl;
-        */
-        for (int im = 0; im < nmass; im++)
+        for (int im = 0; im < nmass; im++) {
           prop[iIndex + im * 12] =
               prop[iIndex + im * 12] +
               coef * conj(inv(es[i].val, mass[im], rho, one_minus_halfD)) *
                   src_tmp;
+        }
       }
     }
   swatch.stop();
@@ -799,7 +781,21 @@ void InlinePropagatorMulti::func(unsigned long update_no, XMLWriter &xml_out) {
       quarkPropMult(quark_propagator, params.mass, quark_prop_source, j_decay,
                     params.param, ncg_had);
       inverter_l(ov, quark_prop_source, prop, params.mass, ov.rho, 1);
-      inverter_h(ov, ov, quark_prop_source, prop, params.mass, 600, 1e-7, 1);
+      QDPIO::cout << "RH_CHECK! inverter_l" << std::endl;
+      // inverter_h(ov, ov, quark_prop_source, prop, params.mass, 600, 1e-7, 1);
+      QDPIO::cout << "RH_CHECK! inveter_h" << std::endl;
+      LatticePropagator sol = zero;
+      for (int d = 0; d < 4; d++)
+        for (int c = 0; c < 3; c++) {
+          FermToProp(prop[d * 3 + c], sol, c, d);
+        }
+      // multi1d<DComplex> corr(8);
+      // corr= RH_qcd::contract_meson(sol,sol,Gamma(15),Gamma(15));
+      for (int t = 0; t < 8; t++) {
+
+        QDPIO::cout << "CORR:" << corr[t] << std::endl;
+      }
+
       swatch.stop();
       QDPIO::cout << "PropagatorMulti computed: time= "
                   << swatch.getTimeInSeconds() << " secs" << std::endl;
