@@ -107,6 +107,9 @@ inverter test
 <Name>PROPAGATOR_MULTI</Name>
 <Frequency>1</Frequency>
 <mass>0.0300 0.05 0.1</mass>
+<maxiter>600</maxiter>
+<cg_error>1.0e-8</cg_error>
+<flag_dc>1</flag_dc>
 <Param>
        <version>10</version>
         <quarkSpinType>FULL</quarkSpinType>

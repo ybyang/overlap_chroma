@@ -21,7 +21,7 @@
 #include "util/ferm/transf.h"
 #include <complex.h>
 
-//#include "RHQCD/Include/RH_qcd.h"
+#include "corr_contract.h"
 namespace Chroma {
 namespace InlinePropagatorMultiEnv {
 namespace {
@@ -57,7 +57,6 @@ void read(XMLReader &xml, const std::string &path,
   read(inputtop, "gauge_id", input.gauge_id);
   read(inputtop, "source_id", input.source_id);
   read(inputtop, "prop_id", input.prop_id);
-  read(inputtop, "eigen_id", input.eigen_id);
   read(inputtop, "op_id", input.op_id);
 }
 
@@ -69,7 +68,6 @@ void write(XMLWriter &xml, const std::string &path,
   write(xml, "gauge_id", input.gauge_id);
   write(xml, "source_id", input.source_id);
   write(xml, "prop_id", input.prop_id);
-  write(xml, "eigen_id", input.eigen_id);
   write(xml, "op_id", input.op_id);
 
   pop(xml);
@@ -92,6 +90,9 @@ InlinePropagatorMultiParams::InlinePropagatorMultiParams(
     read(paramtop, "Param", param);
 
     read(paramtop, "mass", mass);
+    read(paramtop, "maxiter", maxiter);
+    read(paramtop, "cg_error", cg_error);
+    read(paramtop, "flag_dc", flag_dc);
 
     // Read in the output propagator/source configuration info
     read(paramtop, "NamedObject", named_obj);
@@ -155,15 +156,13 @@ void deflation_ov(multi1d<EigenPair<LatticeFermion> > &es,
   swatch.start();
 
   LatticeFermion vec_tmp;
-  for (int d = 0; d < 4; d++)   // d<4
-    for (int c = 0; c < 3; c++) // c<3
+  for (int d = 0; d < Ns; d++)   // d<4
+    for (int c = 0; c < Nc; c++) // c<3
     {
-      int iIndex = c + 3 * d;
+      int iIndex = c + Nc * d;
       src_tmp[iIndex] = source[iIndex];
       for (int i = 0; i < es.size(); i++) {
         DComplex alpha = innerProduct(es[i].vec, src_tmp[iIndex]);
-        QDPIO::cout << "iIndex=" << iIndex << "\t i=" << i
-                    << "\talpha=" << alpha << std::endl;
         src_tmp[iIndex] = src_tmp[iIndex] - alpha * es[i].vec;
         vec_tmp = Gamma(Ns * Ns - 1) * es[i].vec;
         alpha = innerProduct(vec_tmp, src_tmp[iIndex]);
@@ -243,25 +242,17 @@ int cgm_adaptive(matmult_prec<LatticeFermion> &matMult, multi1d<Real> shifts,
   swatch.start();
   // shifts[0]==0, the zeroshift
   // shifts.size==masses.size()
-  QDPIO::cout << "cgm_adaptive norm(src)=" << sqrt(norm2(src)) << std::endl;
   sol.resize(shifts.size());
   sol = zero;
-  multi1d<LatticeFermion> p;
-  p.resize(shifts.size());
+  multi1d<LatticeFermion> p(shifts.size()), r(shifts.size());
   p = src;
-  multi1d<LatticeFermion> r;
-  r.resize(shifts.size());
   r = src;
-  multi1d<Real> R;
-  R.resize(shifts.size());
+  multi1d<Real> R(shifts.size());
   R = zero;
-  multi1d<Real> c1, c2, c3;
-  c1.resize(shifts.size());
-  c2.resize(shifts.size());
+  multi1d<Real> c1(shifts.size()), c2(shifts.size()), c3(shifts.size());
   c1 = 1;
   c2 = 1;
-  multi1d<Real> alpha;
-  alpha.resize(shifts.size());
+  multi1d<Real> alpha(shifts.size());
   alpha = -1;
   Real alpha_old;
   alpha_old = -1;
@@ -368,8 +359,7 @@ int overlap_inverter(OverlapEigenOperator &ov, LatticeFermion &src,
   src_pos = zero;
   LatticeFermion src_neg;
   src_neg = zero;
-  multi1d<Real> shifts;
-  shifts.resize(masses.size());
+  multi1d<Real> shifts(masses.size());
   shifts = zero;
   Real zeroshift, rho;
   zeroshift = zero;
@@ -446,17 +436,16 @@ int overlap_inverter(OverlapEigenOperator &ov, LatticeFermion &src,
     multi1d<LatticeFermion> tmp;
     tmp.resize(2);
     tmp(0) = Gamma(Ns * Ns - 1) * pvecPropagators[i];
-    ov.eps(tmp(0), tmp(1), 0);
+    ov.general_dov(tmp(1), tmp(0), 0, 0, 1.0, 0);
     pvecPropagators[i] = (rho + masses[i] / 2) * pvecPropagators[i] +
                          (rho - masses[i] / 2) * tmp(1);
   }
 
   if (one_minus_halfD > 0)
     for (int i = 0; i < masses.size(); i++) {
-      multi1d<LatticeFermion> tmp;
-      tmp.resize(1);
       if (one_minus_halfD == 2) {
-        ov.eps5(pvecPropagators[i], tmp(0), 0);
+        multi1d<LatticeFermion> tmp(1);
+        ov.general_dov(tmp[0], pvecPropagators[i], 1, 0, 0, 0);
         pvecPropagators[i] = 0.5 * (pvecPropagators[i] - tmp(0));
       } else {
         pvecPropagators[i] = (rho / (rho - masses[i] / 2)) *
@@ -470,11 +459,9 @@ int overlap_inverter(OverlapEigenOperator &ov, LatticeFermion &src,
   return iters;
 } // end overlap_inverter
 
-int inverter_h(OverlapEigenOperator &ov,
-               multi1d<EigenPair<LatticeFermion> > &es,
-               LatticePropagator &source, multi1d<LatticeFermion> &prop,
-               multi1d<Real> &masses, int max_iter, double cg_err,
-               int one_minus_halfD) {
+int inverter_h(OverlapEigenOperator &ov, multi1d<LatticeFermion> &src,
+               multi1d<LatticeFermion> &prop, multi1d<Real> &masses,
+               int max_iter, double cg_err, int one_minus_halfD) {
   // note that we assumed that prop has been initialized
   StopWatch swatch;
   swatch.reset();
@@ -483,34 +470,25 @@ int inverter_h(OverlapEigenOperator &ov,
   int totaliters = 0, iters;
   QDPIO::cout << "Polynomial order for sign function approximation is"
               << get_poly_order() << std::endl;
-  multi1d<LatticeFermion> src_tmp, src;
-  src.resize(12);
-  src_tmp.resize(12);
-  src = zero;
+  multi1d<LatticeFermion> src_tmp(Nc * Ns);
   src_tmp = zero;
-  for (int d = 0; d < 4; d++)
-    for (int c = 0; c < 3; c++) {
-      int iIndex = c + 3 * d;
-      PropToFerm(source, src[iIndex], c, d);
-    }
 
   int nmass = masses.size();
-  multi1d<LatticeFermion> vec_prop;
-  vec_prop.resize(masses.size());
+  multi1d<LatticeFermion> vec_prop(masses.size());
   vec_prop = zero;
-  src_tmp = zero;
-  deflation_ov(es, src, src_tmp);
+  deflation_ov(ov, src, src_tmp);
 
   Real prec0 = cg_err;
-  for (int d = 0; d < 4; d++)
-    for (int c = 0; c < 3; c++) {
-      int iIndex = c + 3 * d;
+  for (int d = 0; d < Ns; d++)
+    for (int c = 0; c < Nc; c++) {
+      int iIndex = c + Nc * d;
       for (int i = 0; i < nmass; i++)
-        vec_prop[i] = prop[iIndex + i * 12];
-      LatticeFermion tmp;
+        vec_prop[i] = prop[iIndex + i * Nc * Ns];
       iters = overlap_inverter(ov, src_tmp[iIndex], vec_prop, masses, max_iter,
                                prec0, one_minus_halfD);
       totaliters += iters;
+      for (int i = 0; i < nmass; i++)
+        prop[iIndex + i * Nc * Ns] = vec_prop[i];
     }
   printf("CGov: total iterations %d\n", totaliters);
   swatch.stop();
@@ -540,23 +518,14 @@ Complex cscalar_product_chi(LatticeFermion &a, LatticeFermion &b, bool left) {
 // rho of inverter_l is not ov.rho
 // TODO:why norm2(src[i])==0?
 void inverter_l(multi1d<EigenPair<LatticeFermion> > &es,
-                LatticePropagator &source, multi1d<LatticeFermion> &prop,
+                multi1d<LatticeFermion> &src, multi1d<LatticeFermion> &prop,
                 const multi1d<Real> &mass, Real rho, int one_minus_halfD) {
   StopWatch swatch;
   swatch.reset();
   swatch.start();
 
   int nmass = mass.size();
-  multi1d<LatticeFermion> src;
   LatticeFermion src_tmp = zero;
-  src.resize(12);
-  src = zero;
-  for (int d = 0; d < 4; d++)
-    for (int c = 0; c < 3; c++) {
-      int iIndex = c + 3 * d;
-      PropToFerm(source, src[iIndex], c, d);
-    }
-
   for (int d = 0; d < 4; d++)
     for (int c = 0; c < 3; c++) {
       int iIndex = c + 3 * d;
@@ -611,14 +580,6 @@ void InlinePropagatorMulti::func(unsigned long update_no, XMLWriter &xml_out) {
         params.named_obj.gauge_id);
     TheNamedObjMap::Instance().get(params.named_obj.gauge_id).getRecordXML(
         gauge_xml);
-    /*TheNamedObjMap::Instance ().getData <multi1d<EigenOperator<
-      LatticeFermion> > >(params.named_obj.eigen_id);
-    TheNamedObjMap::Instance ().get (params.named_obj.
-                                  eigen_id).getRecordXML (eigen_xml);   */
-    TheNamedObjMap::Instance().getData<EigenOperator<LatticeFermion> *>(
-        params.named_obj.eigen_id);
-    TheNamedObjMap::Instance().get(params.named_obj.eigen_id).getRecordXML(
-        eigen_xml);
   }
   catch (std::bad_cast) {
     QDPIO::cerr << InlinePropagatorMultiEnv::name
@@ -634,20 +595,12 @@ void InlinePropagatorMulti::func(unsigned long update_no, XMLWriter &xml_out) {
       TheNamedObjMap::Instance().getData<multi1d<LatticeColorMatrix> >(
           params.named_obj.gauge_id);
 
-  // EigenPair<LatticeFermion>*
-  // eigen=TheNamedObjMap::Instance().getData<EigenPair<LatticeFermion>*
-  // >(params.named_obj.eigen_id);
-  EigenOperator<LatticeFermion> *eigen1 =
-      TheNamedObjMap::Instance().getData<EigenOperator<LatticeFermion> *>(
-          params.named_obj.eigen_id);
-  EigenOperator<LatticeFermion> &eigen_ov = *eigen1;
   OverlapEigenOperator *eigen =
       TheNamedObjMap::Instance().getData<OverlapEigenOperator *>(
           params.named_obj.op_id);
   OverlapEigenOperator &ov = *eigen;
   QDPIO::cout << "check residual from mult_prop!" << std::endl;
   ov.check_residual(fuzz);
-  eigen_ov.check_residual(fuzz);
   push(xml_out, "propagator");
   write(xml_out, "update_no", update_no);
   proginfo(xml_out); // Print out basic program info
@@ -773,29 +726,36 @@ void InlinePropagatorMulti::func(unsigned long update_no, XMLWriter &xml_out) {
       QDPIO::cout << "Try the various factories" << std::endl;
       QDPIO::cout << "Compute the multiple quark props" << std::endl;
       swatch.start();
-      multi1d<LatticeFermion> prop;
-      prop.resize(params.mass.size() * 12);
-      for (int i = 0; i < 12 * (params.mass.size()); i++)
+
+      multi1d<LatticeFermion> prop(params.mass.size() * Nc * Ns), src(Nc * Ns);
+      // prop.resize(params.mass.size() * Nc*Ns);
+      for (int i = 0; i < Nc * Ns * (params.mass.size()); i++)
         prop[i] = zero;
+      for (int d = 0; d < Ns; d++)
+        for (int c = 0; c < Nc; c++) {
+          PropToFerm(quark_prop_source, src[Nc * d + c], c, d);
+        }
 
       quarkPropMult(quark_propagator, params.mass, quark_prop_source, j_decay,
                     params.param, ncg_had);
-      inverter_l(ov, quark_prop_source, prop, params.mass, ov.rho, 1);
-      QDPIO::cout << "RH_CHECK! inverter_l" << std::endl;
-      // inverter_h(ov, ov, quark_prop_source, prop, params.mass, 600, 1e-7, 1);
-      QDPIO::cout << "RH_CHECK! inveter_h" << std::endl;
-      LatticePropagator sol = zero;
-      for (int d = 0; d < 4; d++)
-        for (int c = 0; c < 3; c++) {
-          FermToProp(prop[d * 3 + c], sol, c, d);
+      // inverter_h(ov, src, prop, params.mass, 600, 1e-7, 1);
+      inverter_h(ov, src, prop, params.mass, params.maxiter, params.cg_error,
+                 params.flag_dc);
+      inverter_l(ov, src, prop, params.mass, ov.rho, params.flag_dc);
+      for (int i = 0; i < params.mass.size(); i++) {
+        LatticePropagator sol = zero;
+        for (int d = 0; d < Ns; d++)
+          for (int c = 0; c < Nc; c++) {
+            FermToProp(prop[d * Nc + c + Nc * Ns * i], sol, c, d);
+          }
+        multi1d<DComplex> corr = Corr::contract_meson(
+            sol, sol, Gamma(Ns * Ns - 1), Gamma(Ns * Ns - 1));
+        for (int t = 0; t < QDP::Layout::lattSize()[Nd - 1]; t++) {
+          // for(int t=0;t<8;t++){
+
+          QDPIO::cout << "CORR_ps:\t" << i << "\t" << corr[t] << std::endl;
         }
-      // multi1d<DComplex> corr(8);
-      // corr= RH_qcd::contract_meson(sol,sol,Gamma(15),Gamma(15));
-      for (int t = 0; t < 8; t++) {
-
-        QDPIO::cout << "CORR:" << corr[t] << std::endl;
       }
-
       swatch.stop();
       QDPIO::cout << "PropagatorMulti computed: time= "
                   << swatch.getTimeInSeconds() << " secs" << std::endl;
