@@ -41,7 +41,7 @@ namespace Chroma
 		std::string topocharge_para;
 		Real rho;
 		Real kappa;	
-    
+   	Real get_rho(void){return rho;}; 
    		OverlapEigenOperator(GroupXML_t &fermact,multi1d<LatticeColorMatrix> &u,int neig=0):EigenOperator<LatticeFermion>(fermact,u,neig)
     	{   
         	std::istringstream  is(fermact.xml); 

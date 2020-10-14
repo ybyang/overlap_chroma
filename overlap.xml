@@ -34,7 +34,6 @@ overlap test
        <NamedObject>
          <gauge_id>default_gauge_field</gauge_id>
          <eigen_id>HWeigen</eigen_id>
-	<op_id>HWOP</op_id>
        </NamedObject>
     </elem>  
 
@@ -70,7 +69,6 @@ overlap test
        <NamedObject>
          <gauge_id>default_gauge_field</gauge_id>
          <eigen_id>OVeigen</eigen_id>
-	<op_id>OVOP</op_id>
        </NamedObject>
     </elem>
 
@@ -147,7 +145,6 @@ inverter test
 <elem>prop3</elem>
 </prop_id>
 <eigen_id>OVeigen</eigen_id>
-<op_id>OVOP</op_id>
 </NamedObject>
 </elem>
 

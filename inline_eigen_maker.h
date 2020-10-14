@@ -121,7 +121,9 @@ namespace Chroma
 		public:
 			typedef multi1d<LatticeColorMatrix>  P;
 			typedef multi1d<LatticeColorMatrix>  Q;    
-
+			virtual Real get_rho(void){};
+			virtual void general_dov(LatticeFermion& chi, const LatticeFermion& psi,
+                		double k0, double k1,double k2,double prec) const{};	
 			EigenOperator(GroupXML_t &fermact,multi1d<LatticeColorMatrix> &u,int neig):multi1d<EigenPair<T> >(neig)
 			{
 				std::istringstream  is(fermact.xml);
