@@ -116,15 +116,15 @@ namespace Chroma
 	     }    
     }
 
-	~HwilsonEigenOperator(){
 #ifdef BUILD_QUDA
-    	destroyOverlapQuda(ov_d);
-#endif
+	~HwilsonEigenOperator(){
+    	if(use_gpu) destroyOverlapQuda(ov_d);
 	}     
+#endif
 
 	protected:    
+		bool use_gpu;
 #ifdef BUILD_QUDA
-    	bool use_gpu;
     	QudaInvertParam quda_inv_param;
     	void* ov_d;
 #endif      

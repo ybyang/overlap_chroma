@@ -284,13 +284,13 @@ namespace Chroma
 		~OverlapEigenOperator()
 		{	
 #ifdef BUILD_QUDA
-			destroyOverlapQuda(ov_d);
+			if(use_gpu) destroyOverlapQuda(ov_d);
 #endif
 		}
 
     protected:     
+		bool use_gpu;
 #ifdef BUILD_QUDA
-    	bool use_gpu;
 		QudaInvertParam quda_inv_param;
 		void* ov_d;
 #endif          	        

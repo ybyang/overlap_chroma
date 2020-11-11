@@ -20,6 +20,7 @@
 #include "util/ferm/diractodr.h"
 #include "util/ferm/transf.h"
 #include "Eigen/Dense"
+#include "readwrite.h"
 
 
 
@@ -60,8 +61,10 @@ namespace Chroma
 			double  chebyshev_cut;   /*<! the upper band of the eigenvalues*/
 			int  chebyshev_order;   /*<! the maxinum length of t*/
 			bool use_ckpoint; /* flag to enable the checkpointing*/
+			int io_num;
+            bool SingLe;
 
-			bool file_exist;
+            int file_exist;
 		} param;
 
 
@@ -226,7 +229,6 @@ namespace Chroma
 					iteration = dim - nvec;
 					for(;;){
 						//main loop
-
 						//step1
 						shijian.reset();
 						shijian.start();
@@ -237,9 +239,6 @@ namespace Chroma
 							Index[i] = i;
 						}
 						eigsort(0,dim-1-iNlocked);
-						for(int i=0; i<dim-iNlocked; i++){ 
-      					//if(Layout::primaryNode() && chirality != 0) printf("e[%4d] = %18.10le + i %18.10le \t %d\n", i, valtemp[Index[i]].real(), valtemp[Index[i]].imag(), Index[i]);
-						}
 						shijian.stop();
 						QDPIO::cout << "main loop step1" << ": total time = "
                 					<< shijian.getTimeInSeconds()
@@ -255,7 +254,6 @@ namespace Chroma
 							proof = normb * abs(Temp(dim-1-iNlocked,Index[i]));
 							if(proof < error*abs(valtemp[Index[i]])) converge++;
 							if(proof < LOCK_THRESHOLD) iNtolock++;
-							//if(Layout::primaryNode() && chirality != 0) printf("res[%4d] = %18.10le crit = %18.10le normb = %18.10le error = %18.10le\n", i, proof, error * abs(valtemp[Index[i]]), normb, error);
 						}
 						if(Layout::primaryNode() && chirality != 0) printf("Converged=%10d, Iteration=%10d\n",converge+iNlocked,iteration);
 						if(converge == Noeigen-iNlocked){
@@ -653,9 +651,8 @@ namespace Chroma
 						ind,toDouble(real(op[ind].val)),
 						toDouble(imag(op[ind].val)),
 						toDouble(res));
-				
-				}
-			}
+				 }
+			 }
 
 			virtual void operator()(T& chi, const T& psi, enum PlusMinus isign) const
 			{
@@ -663,78 +660,80 @@ namespace Chroma
 				QDP_abort(1);
 			}
 
-			void save(const std::string filename, bool to_single=true)
+			void save(const std::string filename, int io_num=1, bool to_single=false)
 			{
 				//save as kentuchy format
 				//save eigenvector and eigenvalue seperately
-
-				//eigen=multi1d<int,EigenPair<LatticeFermion>>
-				//Residues[]=    //the array of residuals
-
+				QDPIO::cout << "IO number = " << io_num << std::endl;
 				//eigenvalue
 				StopWatch shijian;
         		shijian.reset();
         		shijian.start();    
 				EigenOperator<T> &eigen=*this;
-//				if(Layout::primaryNode()) 
-				{
-					std::string file_eval=filename+".eigvals";
-					fprintf(stderr,"Saving eigensysterm ...\n");
-					FILE* fileEigval=fopen(file_eval.c_str(),"w");
-					fprintf(fileEigval, "Eigenvalues and eigenvectors for overlap.\n");
-					fprintf(fileEigval, "Each eigenvector is preceded by a line describing the eigenvalue.\n");
-					fprintf(fileEigval, "The residue is defined as norm(mat.vec-lambda.vec).\n");
-					fprintf(fileEigval, "The format is: a tag EIGV, the real and imaginary part of the eigenvalue and the residue.\n");
-					for(int iIndex = 0; iIndex < eigen.size(); iIndex++){
-						fprintf(fileEigval, "EIGV %+.15le\t%+.15le\t%.10le\n",
-								toDouble(real(eigen[iIndex].val)),
-								toDouble(imag(eigen[iIndex].val)),
-								toDouble(eigen[iIndex].residual));
-					}
-					fclose(fileEigval);
+
+				std::string file_eval=filename+".eigvals";
+				fprintf(stderr,"Saving eigensysterm ...\n");
+				FILE* fileEigval=fopen(file_eval.c_str(),"w");
+				fprintf(fileEigval, "Eigenvalues and eigenvectors for overlap.\n");
+				fprintf(fileEigval, "Each eigenvector is preceded by a line describing the eigenvalue.\n");
+				fprintf(fileEigval, "The residue is defined as norm(mat.vec-lambda.vec).\n");
+				fprintf(fileEigval, "The format is: a tag EIGV, the real and imaginary part of the eigenvalue and the residue.\n");
+				for(int iIndex = 0; iIndex < eigen.size(); iIndex++){
+					fprintf(fileEigval, "EIGV %+.15le\t%+.15le\t%.10le\n",
+							toDouble(real(eigen[iIndex].val)),
+							toDouble(imag(eigen[iIndex].val)),
+							toDouble(eigen[iIndex].residual));
 				}
+				fclose(fileEigval);
+				fileEigval = NULL;
 				
-
 				//save eigenvector
-				multi2d<LatticeComplexD> vec(Nc,Ns);
-				LatticeColorVectorD cv;
-				BinaryFileWriter bin(filename);
-				for(int i=0; i<eigen.size(); i++){
-					QDPIO::cout << i << " " ;
-					LatticeFermion f=adj(U)*eigen[i].vec;
-					for(int spin=0; spin<Ns; ++spin){
-						cv=peekSpin(f,spin);
-						for(int color=0; color<Nc;++color){
-							vec(color,spin)=peekColor(cv,color);
+				io_vec VEC(to_single, io_num);
+                FILE* fileVec = NULL;
+                std::string vecname;
+                if(to_single) vecname = filename+".s";
+                else vecname = filename;
+                if(VEC.para.io_flag) fileVec = fopen(vecname.c_str(),"wb+");
+                else fileVec = NULL;
 
-						}
-					}
+                for(int i=0; i<eigen.size(); i++){
+                    if(to_single) VEC.fieldF = adj(U)*eigen[i].vec;
+                    else VEC.fieldD = adj(U)*eigen[i].vec;
+                    VEC.write(fileVec);
+                }
 
-					for(int spin=0; spin<Ns;++spin){
-						for(int color=0; color<Nc; ++color){
-							LatticeRealD tmp=real(vec(color,spin));
-							write(bin,tmp);
-						}
-					}
-
-					for(int spin=0; spin<Ns; ++spin){
-						for(int color=0; color<Nc; ++color){
-							LatticeRealD tmp=imag(vec(color,spin));
-							write(bin,tmp);
-						}
-					}
-				}//end i  				
+                if(VEC.para.io_flag) fclose(fileVec);
+                fileVec = NULL;
 				shijian.stop();
                 QDPIO::cout << "save" << ": total time = "
                             << shijian.getTimeInSeconds()
+                            << " secs" << std::endl;
+				QDPIO::cout << "write" << ": total time = "
+                            << VEC.para.readtime1.getTimeInSeconds()
+                            << " secs" << std::endl;
+                QDPIO::cout << "convert" << ": total time = "
+                            << VEC.para.readtime2.getTimeInSeconds()
+                            << " secs" << std::endl;
+                QDPIO::cout << "equal" << ": total time = "
+                            << VEC.para.readtime3.getTimeInSeconds()
+                            << " secs" << std::endl;
+                QDPIO::cout << "node" << ": total time = "
+                            << VEC.para.readtime4.getTimeInSeconds()
+                            << " secs" << std::endl;
+                QDPIO::cout << "route" << ": total time = "
+                            << VEC.para.readtime5.getTimeInSeconds()
+                            << " secs" << std::endl;
+                QDPIO::cout << "cpy" << ": total time = "
+                            << VEC.para.readtime6.getTimeInSeconds()
                             << " secs" << std::endl;
 			}
 
 
 
 
-			void load(std::string filename, bool from_single=true)
+			void load(std::string filename, int io_num=1, bool from_single=false)
 			{
+				QDPIO::cout << "IO number = " << io_num << std::endl;
 				StopWatch shijian;
         		shijian.reset();
         		shijian.start();
@@ -760,39 +759,47 @@ namespace Chroma
 					}
 				}//end while
 				fclose(fileEigval); 
+				fileEigval = NULL;
 
 				//load eigenvectors
-				BinaryFileReader bin(filename);
-				LatticeFermionD f;
-				multi2d<LatticeRealD> re(Nc,Ns);
-				multi2d<LatticeRealD> im(Nc,Ns);
-				LatticeColorVectorD cv;
-				for(int i=0; i<eigen.size();i++){
-					QDPIO::cout << i << " " ;
-					for(int spin=0;spin<Ns;spin++)
-						for(int color=0;color<Nc;color++){
-							read(bin,re(color,spin));
-						}
-					for(int spin=0;spin<Ns;spin++){
-						for(int color=0;color<Nc;color++){
-							read(bin,im(color,spin));
-						}
-					}
-					for(int spin=0; spin<Ns;++spin){
-						for(int color=0; color<Nc; color++){
-							pokeColor(cv,cmplx(re(color,spin),im(color,spin)),color);
-						}
-						pokeSpin(f,cv,spin);
+				io_vec VEC(from_single, io_num);
+                FILE* fileVec = NULL;
+                std::string vecname;
+                if(from_single) vecname = filename+".s";
+                else vecname = filename;
+                if(VEC.para.io_flag) fileVec = fopen(vecname.c_str(),"rb+");
+                else fileVec = NULL;
 
-					}
-					eigen[i].vec=U*f;
-					RealD res=sqrt(norm2(f));
-				}//end i
+                for(int i=0; i<eigen.size(); i++){
+                    VEC.read(fileVec);
+                    if(from_single) eigen[i].vec=U*VEC.fieldF;
+                    else eigen[i].vec=U*VEC.fieldD;
+                }
+
+                if(VEC.para.io_flag) fclose(fileVec);
+                fileVec = NULL;
 				shijian.stop();
                 QDPIO::cout << "load" << ": total time = "
                             << shijian.getTimeInSeconds()
                             << " secs" << std::endl;
-
+				QDPIO::cout << "read" << ": total time = "
+                            << VEC.para.readtime1.getTimeInSeconds()
+                            << " secs" << std::endl;
+                QDPIO::cout << "convert" << ": total time = "
+                            << VEC.para.readtime2.getTimeInSeconds()
+                            << " secs" << std::endl;
+                QDPIO::cout << "equal" << ": total time = "
+                            << VEC.para.readtime3.getTimeInSeconds()
+                            << " secs" << std::endl;
+                QDPIO::cout << "node" << ": total time = "
+                            << VEC.para.readtime4.getTimeInSeconds()
+                            << " secs" << std::endl;
+                QDPIO::cout << "route" << ": total time = "
+                            << VEC.para.readtime5.getTimeInSeconds()
+                            << " secs" << std::endl;
+                QDPIO::cout << "cpy" << ": total time = "
+                            << VEC.para.readtime6.getTimeInSeconds()
+                            << " secs" << std::endl;
 			}//end load
 
 			const FermBC<T,P,Q>& getFermBC() const {return *bc;}
@@ -908,6 +915,7 @@ namespace Chroma
 					EigenOperator<LatticeFermion> *eigen=TheNamedObjMap::Instance().getData<EigenOperator<LatticeFermion>* >
 						(params.named_obj.eigen_id);
 					delete eigen;
+					eigen = NULL;
 					TheNamedObjMap::Instance().erase(params.named_obj.eigen_id);
 				} else {
 					QDPIO::cout << "Eigen system: " << params.named_obj.eigen_id

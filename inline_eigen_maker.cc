@@ -68,20 +68,15 @@ namespace Chroma
 //------------------------------------------------------------------------------
 // Parameter reading, writing, handling
 
-  int check_eigen_name(std::string &name, int size)
+  int check_eigen_name(std::string &name)
   {
-      //TODO: check whether the file exist with the corect size;
-     FILE * pFile;
-		long fsize;
-	  pFile=fopen(name.c_str(),"rb");
-	if(pFile==NULL) return false;
-	else{
-		fseek(pFile,0,SEEK_END);
-		fsize=ftell(pFile);
-		fclose(pFile);
-		return true;
-	}
-	
+    //TODO: check whether the file exist with the corect size;
+    std::string names = name + ".s";
+    std::ifstream fd(name);
+    std::ifstream fs(names);
+    if(fs.good()) return 1;
+    else if(fd.good()) return 2;
+    else return 0;
   }
 
   //! Reader for parameters
@@ -95,6 +90,8 @@ namespace Chroma
     read(paramtop, "Noeigen", param.Noeigen);
     read(paramtop, "gpu_level", param.gpu_level);
     read(paramtop, "check_residual", param.check_residual);
+	read(paramtop, "io_num", param.io_num);
+    read(paramtop, "SingLe", param.SingLe);
 
     param.filename="_NULL_";
     if (paramtop.count("filename") > 0)
@@ -105,7 +102,7 @@ namespace Chroma
     param.file_exist=false;
     //check whether the file exist with reasonable size
     if(param.filename!="_NULL_")
-        param.file_exist=check_eigen_name(param.filename,param.Noeigen);
+        param.file_exist=check_eigen_name(param.filename);
     
     if(param.file_exist==false)
     {
@@ -340,19 +337,27 @@ namespace Chroma
                          (params.named_obj.eigen_id)=eigen;
 
 	 			 // Keep an array of all the xml output buffers
-         if(params.param.file_exist==true)
-         {
-             eigen->load(params.param.filename);
-         }
-         else
-         {
-             //TODO:create the eigensystem;
-             eigen->create_eigen(params);
-             QDPIO::cout << "to save.."<< std::endl;
-             //exit(0);
-             std::string name=params.param.filename;
-             eigen->save(name);
-         }
+         if(params.param.file_exist!=0)
+          {
+              if(Layout::numNodes()%params.param.io_num != 0){
+                 QDPIO::cout << "The number of IO cannot divide compute node numbers!" << std::endl;
+                 QDP_abort(1);
+              }
+              if(params.param.file_exist==1)
+                  eigen->load(params.param.filename,params.param.io_num,true);
+              else
+                  eigen->load(params.param.filename,params.param.io_num,false);
+          }
+          else
+          {
+              if(Layout::numNodes()%params.param.io_num != 0){
+                 QDPIO::cout << "The number of IO cannot divide compute node numbers!" << std::endl;
+                 QDP_abort(1);
+              }
+              eigen->create_eigen(params);
+              QDPIO::cout << "to save.."<< std::endl;
+              eigen->save(params.param.filename,params.param.io_num,params.param.SingLe);
+          }
     }
     
     if(params.param.check_residual==true)

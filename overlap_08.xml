@@ -1,0 +1,137 @@
+<?xml version="1.0"?>
+<chroma>
+<annotation>
+overlap test
+</annotation>	
+<Param>
+  <InlineMeasurements>
+
+
+    <!--elem>
+      <Name>QIO_WRITE_NAMED_OBJECT</Name>
+      <Frequency>1</Frequency>
+      <NamedObject>
+        <object_id>default_gauge_field</object_id>
+        <object_type>Multi1dLatticeColorMatrix</object_type>
+      </NamedObject>
+      <File>
+        <file_name>gs8t8iwa165_052.scidac</file_name>
+        <file_volfmt>SINGLEFILE</file_volfmt>
+        <parallel_io>true</parallel_io>
+      </File>
+    </elem-->
+
+    <elem>
+    <annotation>
+      Gerenrate/Load H-wilson eigensystem for the overlap fermion
+    </annotation>
+       <Name>EIGEN_MAKER</Name>
+       <Frequency>1</Frequency>
+       <Param>
+          <FermionAction>
+            <FermAct>HWILSON</FermAct>
+            <Kappa>0.2</Kappa>
+            <use_gpu>false</use_gpu>
+            <FermionBC>
+              <FermBC>SIMPLE_FERMBC</FermBC>
+              <boundary>1 1 1 1</boundary>
+            </FermionBC>
+          </FermionAction>
+         <Noeigen>50</Noeigen>
+         <extra_space>100</extra_space>
+         <chebyshev_cut>0.18</chebyshev_cut>
+         <chebyshev_order>100</chebyshev_order>
+         <gpu_level>0</gpu_level>
+         <check_residual>true</check_residual>
+         <use_ckpoint>false</use_ckpoint>
+		 <io_num>1</io_num>
+		 <SingLe>false</SingLe>
+         <filename>gs8t8iwa165_052.hw</filename>
+       </Param>
+       <NamedObject>
+         <gauge_id>default_gauge_field</gauge_id>
+         <eigen_id>HWeigen</eigen_id>
+       </NamedObject>
+    </elem>  
+
+    <elem>
+    <annotation>
+      Gerenrate/Load overlap eigensystem
+    </annotation>
+       <Name>EIGEN_MAKER</Name>
+       <Frequency>1</Frequency>
+       <Param>
+          <FermionAction>
+            <FermAct>OVERLAP</FermAct>
+            <Kappa>0.2</Kappa>
+            <use_gpu>true</use_gpu>
+            <HW_eigen>HWeigen</HW_eigen>
+            <Noeigen_hw>50</Noeigen_hw>
+            <accuracy>1e-12</accuracy>
+            <topocharge_para>Boulder</topocharge_para>
+            <FermionBC>
+              <FermBC>SIMPLE_FERMBC</FermBC>
+              <boundary>1 1 1 1</boundary>
+            </FermionBC>
+          </FermionAction>
+         <Noeigen>50</Noeigen>
+         <extra_space>50</extra_space>
+         <chebyshev_cut>0.5</chebyshev_cut>
+         <chebyshev_order>11</chebyshev_order>
+         <gpu_level>0</gpu_level>
+         <check_residual>true</check_residual>
+         <use_ckpoint>false</use_ckpoint>
+		 <io_num>1</io_num>
+		 <SingLe>false</SingLe>
+         <filename>gs8t8iwa165_052.ov.sys</filename>
+       </Param>
+       <NamedObject>
+         <gauge_id>default_gauge_field</gauge_id>
+         <eigen_id>OVeigen</eigen_id>
+       </NamedObject>
+    </elem>
+
+    <elem>
+    <annotation>
+      Erase Overlap eigensystem
+    </annotation>
+       <Name>EIGEN_ERASER</Name>
+       <Frequency>1</Frequency>
+       <NamedObject>
+         <eigen_id>OVeigen</eigen_id>
+       </NamedObject>
+    </elem>       
+
+    <elem>
+    <annotation>
+      Erase HWilson eigensystem
+    </annotation>
+       <Name>EIGEN_ERASER</Name>
+       <Frequency>1</Frequency>
+       <NamedObject>
+         <eigen_id>HWeigen</eigen_id>
+       </NamedObject>
+    </elem>       
+        
+
+
+
+  </InlineMeasurements>
+    <nrow>8 8 8 8</nrow>
+</Param>
+
+  <RNG>
+    <Seed>
+      <elem>11</elem>
+      <elem>11</elem>
+      <elem>11</elem>
+      <elem>0</elem>
+    </Seed>
+  </RNG>
+
+  <Cfg>
+    <cfg_type>KYU</cfg_type>
+    <cfg_file>gs8t8iwa165_052</cfg_file>
+  </Cfg>
+
+</chroma>
