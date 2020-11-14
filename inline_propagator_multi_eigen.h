@@ -39,7 +39,7 @@ struct InlinePropagatorMultiParams {
   struct NamedObject_t {
     std::string gauge_id;
     std::string source_id;
-    std::string op_id;
+    std::string eigen_id;
     multi1d<std::string> prop_id;
   } named_obj;
 

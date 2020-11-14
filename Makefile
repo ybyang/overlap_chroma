@@ -4,7 +4,6 @@ CONFIG=./chroma-config
 
 CXX=$(shell $(CONFIG) --cxx) 
 CXXFLAGS=$(shell $(CONFIG) --cxxflags) "-w"
-#CXXFLAGS=-D_PDF_ $(shell $(CONFIG) --cxxflags) -I$(TOPDIR)/qla/include -I. $(MGCXXFLAGS) 
 LDFLAGS=$(shell $(CONFIG) --ldflags) 
 LIBS=$(shell $(CONFIG) --libs) 
 
@@ -13,11 +12,13 @@ HDRS=inline_eigen_maker.h \
         overlap_eigenop.h \
         quda_utils.h \
         inline_propagator_multi_eigen.h \
-        chebyshev_coeff.h
+        chebyshev_coeff.h \
+		readwrite.h
 
 OBJS=chroma.o \
      inline_eigen_maker.o \
-     inline_propagator_multi_eigen.o
+     inline_propagator_multi_eigen.o \
+	 readwrite.o
 
 chroma: $(OBJS)
 	$(CXX) -o $@ $(CXXFLAGS) $(OBJS) $(LDFLAGS) $(LIBS)

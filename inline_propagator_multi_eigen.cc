@@ -57,7 +57,7 @@ void read(XMLReader &xml, const std::string &path,
   read(inputtop, "gauge_id", input.gauge_id);
   read(inputtop, "source_id", input.source_id);
   read(inputtop, "prop_id", input.prop_id);
-  read(inputtop, "op_id", input.op_id);
+  read(inputtop, "eigen_id", input.eigen_id);
 }
 
 //! PropagatorMulti output
@@ -68,7 +68,7 @@ void write(XMLWriter &xml, const std::string &path,
   write(xml, "gauge_id", input.gauge_id);
   write(xml, "source_id", input.source_id);
   write(xml, "prop_id", input.prop_id);
-  write(xml, "op_id", input.op_id);
+  write(xml, "eigen_id", input.eigen_id);
 
   pop(xml);
 }
@@ -195,11 +195,12 @@ template <typename genvector> struct matmult_prec : matmult<genvector> {
 };
 
 template <typename genvector> struct DD_ov_kernel : matmult_prec<genvector> {
-  OverlapEigenOperator &ov;
+  //OverlapEigenOperator &ov;
+  EigenOperator<LatticeFermion> &ov;
   Real zero_shift;
   int chirality;
 
-  DD_ov_kernel(OverlapEigenOperator &ov, Real zero_shift, int c)
+  DD_ov_kernel(EigenOperator<LatticeFermion> &ov, Real zero_shift, int c)
       : matmult_prec<genvector>(0), ov(ov), zero_shift(zero_shift),
         chirality(c) {}
 
@@ -342,7 +343,8 @@ void check_residues(matmult<T> &M, T &src_pos, multi1d<T> &pos_Sol,
   }
 }
 
-int overlap_inverter(OverlapEigenOperator &ov, LatticeFermion &src,
+//int overlap_inverter(OverlapEigenOperator &ov, LatticeFermion &src,
+int overlap_inverter(EigenOperator<LatticeFermion> &ov, LatticeFermion &src,
                      multi1d<LatticeFermion> &pvecPropagators,
                      multi1d<Real> &masses, int max_iter, Real error,
                      int one_minus_halfD = 1) {
@@ -365,7 +367,7 @@ int overlap_inverter(OverlapEigenOperator &ov, LatticeFermion &src,
   zeroshift = zero;
   rho = zero;
   int iters = 0;
-  rho = ov.rho;
+  rho = ov.get_rho();
   for (int iIndex = 0; iIndex < masses.size(); iIndex++) {
     if (iIndex == 0) {
       shifts[0] = 2 * (rho * rho + masses[0] * masses[0] / 4.0) /
@@ -459,7 +461,8 @@ int overlap_inverter(OverlapEigenOperator &ov, LatticeFermion &src,
   return iters;
 } // end overlap_inverter
 
-int inverter_h(OverlapEigenOperator &ov, multi1d<LatticeFermion> &src,
+//int inverter_h(OverlapEigenOperator &ov, multi1d<LatticeFermion> &src,
+int inverter_h(EigenOperator<LatticeFermion> &ov, multi1d<LatticeFermion> &src,
                multi1d<LatticeFermion> &prop, multi1d<Real> &masses,
                int max_iter, double cg_err, int one_minus_halfD) {
   // note that we assumed that prop has been initialized
@@ -523,7 +526,7 @@ void inverter_l(multi1d<EigenPair<LatticeFermion> > &es,
   StopWatch swatch;
   swatch.reset();
   swatch.start();
-
+QDPIO::cout<<"RH_CHECK!"<<std::endl;
   int nmass = mass.size();
   LatticeFermion src_tmp = zero;
   for (int d = 0; d < 4; d++)
@@ -595,10 +598,16 @@ void InlinePropagatorMulti::func(unsigned long update_no, XMLWriter &xml_out) {
       TheNamedObjMap::Instance().getData<multi1d<LatticeColorMatrix> >(
           params.named_obj.gauge_id);
 
+/*
   OverlapEigenOperator *eigen =
       TheNamedObjMap::Instance().getData<OverlapEigenOperator *>(
           params.named_obj.op_id);
   OverlapEigenOperator &ov = *eigen;
+*/
+EigenOperator<LatticeFermion> *eigen=TheNamedObjMap::Instance().getData<EigenOperator<LatticeFermion> *>(
+	params.named_obj.eigen_id);
+	EigenOperator<LatticeFermion> &ov=*eigen;
+
   QDPIO::cout << "check residual from mult_prop!" << std::endl;
   ov.check_residual(fuzz);
   push(xml_out, "propagator");
@@ -738,10 +747,11 @@ void InlinePropagatorMulti::func(unsigned long update_no, XMLWriter &xml_out) {
 
       quarkPropMult(quark_propagator, params.mass, quark_prop_source, j_decay,
                     params.param, ncg_had);
-      // inverter_h(ov, src, prop, params.mass, 600, 1e-7, 1);
+	
       inverter_h(ov, src, prop, params.mass, params.maxiter, params.cg_error,
                  params.flag_dc);
-      inverter_l(ov, src, prop, params.mass, ov.rho, params.flag_dc);
+	QDPIO::cout<<"RH_CHECK!"<<std::endl;
+      inverter_l(ov, src, prop, params.mass, ov.get_rho(), params.flag_dc);
       for (int i = 0; i < params.mass.size(); i++) {
         LatticePropagator sol = zero;
         for (int d = 0; d < Ns; d++)
