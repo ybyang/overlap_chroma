@@ -33,10 +33,10 @@ struct io_para
 
 	StopWatch readtime1;
 	StopWatch readtime2;
-    StopWatch readtime3;
-    StopWatch readtime4;
-    StopWatch readtime5;
-    StopWatch readtime6;
+	StopWatch readtime3;
+	StopWatch readtime4;
+	StopWatch readtime5;
+	StopWatch readtime6;
 };
 
 
@@ -52,15 +52,15 @@ struct io_vec
 
 	io_vec(bool _single, int io_num);
 
-	void read(FILE* filehand);
+	void read(FILE* filehand, int idx=-1);
 
-	void write(FILE* filehand);
+	void write(FILE* filehand, int idx=-1);
 
-	void readD(FILE* filehand);
+	void readD(FILE* filehand, int idx=-1);
 
 	void readF(FILE* filehand);
 
-	void writeD(FILE* filehand);
+	void writeD(FILE* filehand, int idx=-1);
 
 	void writeF(FILE* filehand);
 };

@@ -31,7 +31,7 @@ overlap test
           <FermionAction>
             <FermAct>HWILSON</FermAct>
             <Kappa>0.2</Kappa>
-            <use_gpu>false</use_gpu>
+            <use_gpu>true</use_gpu>
             <FermionBC>
               <FermBC>SIMPLE_FERMBC</FermBC>
               <boundary>1 1 1 1</boundary>
@@ -53,6 +53,7 @@ overlap test
          <eigen_id>HWeigen</eigen_id>
        </NamedObject>
     </elem>  
+
 
     <elem>
     <annotation>
@@ -82,7 +83,7 @@ overlap test
          <check_residual>true</check_residual>
          <use_ckpoint>false</use_ckpoint>
 		 <io_num>4</io_num>
-		 <SingLe>false</SingLe>
+		 <SingLe>true</SingLe>
          <filename>rbc_conf_2464_m0.005_0.04_000495_hyp.ov.sys</filename>
        </Param>
        <NamedObject>
@@ -90,6 +91,82 @@ overlap test
          <eigen_id>OVeigen</eigen_id>
        </NamedObject>
     </elem>
+
+
+	<elem>
+      <Name>MAKE_SOURCE</Name>
+      <Frequency>1</Frequency>
+      <Param>
+        <version>6</version>
+        <Source>
+          <version>2</version>
+          <SourceType>POINT_SOURCE</SourceType>
+          <j_decay>3</j_decay>
+          <t_srce>0 0 0 0</t_srce>
+
+          <Displacement>
+            <version>1</version>
+            <DisplacementType>NONE</DisplacementType>
+          </Displacement>
+        </Source>
+      </Param>
+      <NamedObject>
+        <gauge_id>default_gauge_field</gauge_id>
+        <source_id>pt_source</source_id>
+      </NamedObject>
+    </elem>
+
+
+<elem>
+<annotation>
+inverter test
+</annotation>
+<Name>PROPAGATOR_MULTI</Name>
+<Frequency>1</Frequency>
+<mass>0.0300 0.05 0.1</mass>
+<maxiter>600</maxiter>
+<cg_error>1.0e-8</cg_error>
+<flag_dc>1</flag_dc>
+<Param>
+       <version>10</version>
+        <quarkSpinType>FULL</quarkSpinType>
+        <obsvP>false</obsvP>
+        <numRetries>1</numRetries>
+        <FermionAction>
+         <FermAct>CLOVER</FermAct>
+         <Kappa>0.115</Kappa>
+         <clovCoeff>1.17</clovCoeff>
+         <clovCoeffR>0.91</clovCoeffR>
+         <clovCoeffT>1.07</clovCoeffT>
+         <AnisoParam>
+           <anisoP>true</anisoP>
+           <t_dir>3</t_dir>
+           <xi_0>2.464</xi_0>
+           <nu>0.95</nu>
+         </AnisoParam>
+         <FermionBC>
+           <FermBC>SIMPLE_FERMBC</FermBC>
+           <boundary>1 1 1 -1</boundary>
+         </FermionBC>
+        </FermionAction>
+		<InvertParam>
+    <invType>CG_INVERTER</invType>
+          <RsdCG>1.0e-12</RsdCG>
+          <MaxCG>1000</MaxCG>
+        </InvertParam>
+</Param>
+<NamedObject>
+<gauge_id>default_gauge_field</gauge_id>
+<source_id>pt_source</source_id>
+<prop_id>
+<elem>prop1</elem>
+<elem>prop2</elem>
+<elem>prop3</elem>
+</prop_id>
+<eigen_id>OVeigen</eigen_id>
+</NamedObject>
+</elem>
+
 
     <elem>
     <annotation>

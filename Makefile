@@ -17,7 +17,7 @@ HDRS=inline_eigen_maker.h \
 
 OBJS=chroma.o \
      inline_eigen_maker.o \
-     inline_propagator_multi_eigen.o\
+     inline_propagator_multi_eigen.o \
 	 readwrite.o
 
 chroma: $(OBJS)

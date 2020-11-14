@@ -14,4 +14,4 @@
 
 export OMP_NUM_THREADS=8
 
-mpirun -np 4 ./chroma -i overlap_24.xml -geom 1 1 1 4 > output-test.24
+mpirun -np 4 ./chroma -i overlap_24.xml -geom 1 1 1 4 > output.24

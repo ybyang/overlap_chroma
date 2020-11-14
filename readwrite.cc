@@ -34,23 +34,23 @@ io_vec::io_vec(bool _single, int io_num){
 }
 
 
-void io_vec::read(FILE* filehand){
+void io_vec::read(FILE* filehand, int idx=-1){
 	QMP_barrier();
 	if(single) readF(filehand);
-	else readD(filehand);
+	else readD(filehand,idx);
 	QMP_barrier();
 }
 
 
-void io_vec::write(FILE* filehand){
+void io_vec::write(FILE* filehand, int idx=-1){
 	QMP_barrier();
-    if(single) writeF(filehand);
-    else writeD(filehand);
+	if(single) writeF(filehand);
+	else writeD(filehand,idx);
 	QMP_barrier();
 }
 
 
-void io_vec::readD(FILE* filehand){
+void io_vec::readD(FILE* filehand, int vec_idx=-1){
 
 	typedef infermD inferm;
 	typedef REAL64 little;
@@ -65,10 +65,22 @@ void io_vec::readD(FILE* filehand){
 		fout = (inferm*) malloc(para.vvol*para.memsize);
 		para.readtime1.start();
 		buff = (char*) malloc(para.vvol*para.memsize);
+		if(vec_idx == -1)
 		for(int j=0;j<2*Ns*Nc;j++){
 			fseek(filehand, para.io_idx*para.vvol*para.little_size, SEEK_CUR);
 			fread(buff+j*para.vvol*para.little_size, 1, para.vvol*para.little_size, filehand);
 			fseek(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.little_size, SEEK_CUR);
+		}
+		else{
+			if(vec_idx!=0) fseek(filehand,para.memsize*para.vvol,SEEK_SET);
+			else fseek(filehand,0,SEEK_SET);
+			for(int j=1;j<vec_idx*para.io_num;j++)
+				fseek(filehand,para.vvol*para.memsize,SEEK_CUR);
+			for(int j=0;j<2*Ns*Nc;j++){
+				fseek(filehand,(j*para.io_num+para.io_idx)*para.vvol*para.little_size,SEEK_CUR);
+				fread(buff+j*para.vvol*para.little_size, 1, para.vvol*para.little_size, filehand);
+				fseek(filehand,-(j*para.io_num+para.io_idx+1)*para.vvol*para.little_size,SEEK_CUR);
+			}
 		}
 		para.readtime1.stop();
 		para.readtime2.start();
@@ -165,7 +177,7 @@ void io_vec::readF(FILE* filehand){
 }
 
 
-void io_vec::writeD(FILE* filehand){
+void io_vec::writeD(FILE* filehand, int vec_idx=-1){
 
 	typedef infermD inferm;
 	typedef REAL64 little;
@@ -196,38 +208,50 @@ void io_vec::writeD(FILE* filehand){
 		para.readtime5.stop();
 	}
 	free(fin);
-    fin = NULL;
+	fin = NULL;
 	if(para.io_flag){
 		buff = (char*) malloc(para.vvol*para.memsize);
 		buf = buff;
 		para.readtime3.start();
-        for(int reim=0;reim<2;reim++)
-        for(int spin=0;spin<Ns;spin++)
-        for(int color=0;color<Nc;color++){
-            tmp = (little*)buf;
-            if(reim==0)
-                #pragma omp parallel for shared(fout,tmp)
-                for(int site=0;site<para.vvol;site++)
-                    tmp[site] = fout[site].elem(spin).elem(color).real();
-            else
-                #pragma omp parallel for shared(fout,tmp)
-                for(int site=0;site<para.vvol;site++)
-                    tmp[site] = fout[site].elem(spin).elem(color).imag();
-            tmp = NULL;
-            buf+=para.little_size*para.vvol;
-        }
+		for(int reim=0;reim<2;reim++)
+		for(int spin=0;spin<Ns;spin++)
+		for(int color=0;color<Nc;color++){
+			tmp = (little*)buf;
+			if(reim==0)
+			#pragma omp parallel for shared(fout,tmp)
+				for(int site=0;site<para.vvol;site++)
+					tmp[site] = fout[site].elem(spin).elem(color).real();
+			else
+				#pragma omp parallel for shared(fout,tmp)
+				for(int site=0;site<para.vvol;site++)
+					tmp[site] = fout[site].elem(spin).elem(color).imag();
+			tmp = NULL;
+			buf+=para.little_size*para.vvol;
+		}
 		para.readtime3.stop();
 		buf = NULL;
 		free(fout);
-        fout = NULL;
+		fout = NULL;
 		para.readtime2.start();
-        QDPUtil::byte_swap(buff, para.little_size, 2*Ns*Nc*para.vvol);
-        para.readtime2.stop();
+		QDPUtil::byte_swap(buff, para.little_size, 2*Ns*Nc*para.vvol);
+		para.readtime2.stop();
 		para.readtime1.start();
+		if(vec_idx == -1)
 		for(int j=0;j<2*Ns*Nc;j++){
 			fseek(filehand, para.io_idx*para.vvol*para.little_size, SEEK_CUR);
 			fwrite(buff+j*para.vvol*para.little_size, 1, para.vvol*para.little_size, filehand);
 			fseek(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.little_size, SEEK_CUR);
+		}
+		else{
+			if(vec_idx!=0) fseek(filehand,para.memsize*para.vvol,SEEK_SET);
+			else fseek(filehand,0,SEEK_SET);
+			for(int j=1;j<vec_idx*para.io_num;j++)
+				fseek(filehand,para.vvol*para.memsize,SEEK_CUR);
+			for(int j=0;j<2*Ns*Nc;j++){
+				fseek(filehand,(j*para.io_num+para.io_idx)*para.vvol*para.little_size,SEEK_CUR);
+				fwrite(buff+j*para.vvol*para.little_size, 1, para.vvol*para.little_size, filehand);
+				fseek(filehand,-(j*para.io_num+para.io_idx+1)*para.vvol*para.little_size,SEEK_CUR);
+			}
 		}
 		para.readtime1.stop();
 		free(buff);
@@ -265,11 +289,11 @@ void io_vec::writeF(FILE* filehand){
 		para.readtime5.stop();
 	}
 	free(fin);
-    fin = NULL;
+	fin = NULL;
 	if(para.io_flag){
 		para.readtime2.start();
-        QDPUtil::byte_swap((char*)fout, para.little_size, 2*Ns*Nc*para.vvol);
-        para.readtime2.stop();
+		QDPUtil::byte_swap((char*)fout, para.little_size, 2*Ns*Nc*para.vvol);
+		para.readtime2.stop();
 		para.readtime1.start();
 		fseek(filehand, para.io_idx*para.vvol*para.memsize, SEEK_CUR);
 		fwrite((char*)fout, 1, para.vvol*para.memsize, filehand);

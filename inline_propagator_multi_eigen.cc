@@ -747,7 +747,7 @@ EigenOperator<LatticeFermion> *eigen=TheNamedObjMap::Instance().getData<EigenOpe
 
       quarkPropMult(quark_propagator, params.mass, quark_prop_source, j_decay,
                     params.param, ncg_had);
-      // inverter_h(ov, src, prop, params.mass, 600, 1e-7, 1);
+	
       inverter_h(ov, src, prop, params.mass, params.maxiter, params.cg_error,
                  params.flag_dc);
 	QDPIO::cout<<"RH_CHECK!"<<std::endl;
