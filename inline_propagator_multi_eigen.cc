@@ -1,6 +1,7 @@
 /*! \file
  * \brief Inline construction of propagator
- *
+ * Renqiang Zhang 
+ * Nov 15 2020
  * PropagatorMulti calculations
  */
 
