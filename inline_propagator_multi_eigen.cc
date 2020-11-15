@@ -342,6 +342,21 @@ void check_residues(matmult<T> &M, T &src_pos, multi1d<T> &pos_Sol,
                 << std::endl;
   }
 }
+void check_full_residues(EigenOperator<LatticeFermion>& ov,multi1d<LatticeFermion> &src,
+                multi1d<LatticeFermion> &prop_h,multi1d<LatticeFermion> &prop_fr,multi1d<Real> &masses)
+{
+   LatticeFermion tmp;
+   for(int im=0;im<masses.size();im++){
+   for(int i=0;i<12;i++){
+   LatticeFermion sol=prop_h[i+im*12]+prop_fr[i+im*12];
+   ov.general_dov(tmp,sol,0.0,1.0,0.0,0.0);
+   tmp=(ov.get_rho()+masses[im]/2.0)*sol+(ov.get_rho()-masses[im]/2.0)*tmp;
+   Real result = sqrt(real(innerProduct(tmp-src[i],tmp-src[i]))/real(innerProduct(src[i],src[i])));
+   QDPIO::cout<<"Check_full_residues:"<<"mas="<< masses[im] <<" the full residues is " << result<<std::endl;
+   }
+   }
+}
+
 
 //int overlap_inverter(OverlapEigenOperator &ov, LatticeFermion &src,
 int overlap_inverter(EigenOperator<LatticeFermion> &ov, LatticeFermion &src,
@@ -450,8 +465,8 @@ int overlap_inverter(EigenOperator<LatticeFermion> &ov, LatticeFermion &src,
         ov.general_dov(tmp[0], pvecPropagators[i], 1, 0, 0, 0);
         pvecPropagators[i] = 0.5 * (pvecPropagators[i] - tmp(0));
       } else {
-        pvecPropagators[i] = (rho / (rho - masses[i] / 2)) *
-                             (pvecPropagators[i] - src / (2 * rho));
+        pvecPropagators[i] = (rho / (rho - masses[i] / 2.0)) *
+                      (pvecPropagators[i] - src / (2.0 * rho));
       }
     }
   swatch.stop();
@@ -461,7 +476,6 @@ int overlap_inverter(EigenOperator<LatticeFermion> &ov, LatticeFermion &src,
   return iters;
 } // end overlap_inverter
 
-//int inverter_h(OverlapEigenOperator &ov, multi1d<LatticeFermion> &src,
 int inverter_h(EigenOperator<LatticeFermion> &ov, multi1d<LatticeFermion> &src,
                multi1d<LatticeFermion> &prop, multi1d<Real> &masses,
                int max_iter, double cg_err, int one_minus_halfD) {
@@ -501,13 +515,21 @@ int inverter_h(EigenOperator<LatticeFermion> &ov, multi1d<LatticeFermion> &src,
   return totaliters;
 }
 
-Complex inv(const Complex &lam, Real m, Real rho, int one_minus_halfD = 1) {
+Complex inv(const Complex &lam, Real m, Real rho, int one_minus_halfD = 1, int part=0) {
   if (one_minus_halfD > 0) {
     return (1.0 - lam / (2.0 * rho)) / (lam + m * (1.0 - lam / (2.0 * rho)));
   } else {
+   if(part==0){
     return 1.0 / (lam + m * (1.0 - lam / (2.0 * rho)));
+   }else if(part==1){
+        return (-1.0*lam/(2.0*rho))/(lam+m*(1.0-lam/(2.0*rho)));   
+   }else{
+        QDPIO::cout<<"inv: error: parameter \"part\"  can only take value 0 and 1."<<std::endl;
+        exit(1);
+   }
   }
 }
+
 
 Complex cscalar_product_chi(LatticeFermion &a, LatticeFermion &b, bool left) {
   int off = (left == true) ? 0 : 2;
@@ -521,13 +543,15 @@ Complex cscalar_product_chi(LatticeFermion &a, LatticeFermion &b, bool left) {
 // rho of inverter_l is not ov.rho
 // TODO:why norm2(src[i])==0?
 void inverter_l(multi1d<EigenPair<LatticeFermion> > &es,
-                multi1d<LatticeFermion> &src, multi1d<LatticeFermion> &prop,
+                multi1d<LatticeFermion> &src, multi1d<LatticeFermion> &prop_fr,
+		multi1d<LatticeFermion> &prop_se,
                 const multi1d<Real> &mass, Real rho, int one_minus_halfD) {
   StopWatch swatch;
   swatch.reset();
   swatch.start();
-QDPIO::cout<<"RH_CHECK!"<<std::endl;
   int nmass = mass.size();
+  prop_fr=zero;
+  prop_se=zero;
   LatticeFermion src_tmp = zero;
   for (int d = 0; d < 4; d++)
     for (int c = 0; c < 3; c++) {
@@ -535,9 +559,18 @@ QDPIO::cout<<"RH_CHECK!"<<std::endl;
       for (int i = 0; i < es.size(); i++) {
         DComplex coef = innerProduct(es[i].vec, src[iIndex]);
         for (int im = 0; im < nmass; im++) {
-          prop[iIndex + im * 12] =
-              prop[iIndex + im * 12] +
+  	  if(one_minus_halfD>0){
+          prop_fr[iIndex + im * 12] =
+              prop_fr[iIndex + im * 12] +
               coef * inv(es[i].val, mass[im], rho, one_minus_halfD) * es[i].vec;
+         }else{
+	  prop_fr[iIndex+im*12]=
+ 			prop_fr[iIndex+im*12]+
+			coef*inv(es[i].val,mass[im],rho,one_minus_halfD,0)*es[i].vec;
+	  prop_se[iIndex+im*12]=
+			prop_se[iIndex+im*12]+
+			coef*inv(es[i].val,mass[im],rho,one_minus_halfD,1)*es[i].vec;
+        }
         }
         // TODO  es.prec?
         // This condition juged if it is zero mode
@@ -551,10 +584,21 @@ QDPIO::cout<<"RH_CHECK!"<<std::endl;
         src_tmp = Gamma(Ns * Ns - 1) * es[i].vec;
         coef = innerProduct(src_tmp, src[iIndex]);
         for (int im = 0; im < nmass; im++) {
-          prop[iIndex + im * 12] =
-              prop[iIndex + im * 12] +
+	if(one_minus_halfD>0){ 
+          prop_fr[iIndex + im * 12] =
+              prop_fr[iIndex + im * 12] +
               coef * conj(inv(es[i].val, mass[im], rho, one_minus_halfD)) *
                   src_tmp;
+	}else{
+	  prop_fr[iIndex+im*12]=
+		prop_fr[iIndex+im*12]+
+		coef*conj(inv(es[i].val,mass[im],rho,one_minus_halfD,0))*
+			src_tmp;
+	prop_se[iIndex+im*12]=
+		prop_se[iIndex+im*12]+
+		coef*conj(inv(es[i].val,mass[im],rho,one_minus_halfD,1))*
+			src_tmp;	
+	}
         }
       }
     }
@@ -562,6 +606,8 @@ QDPIO::cout<<"RH_CHECK!"<<std::endl;
   QDPIO::cout << "Inverter_l: " << swatch.getTimeInSeconds() << " seconds"
               << std::endl;
 }
+
+
 
 void quarkPropMult(multi1d<LatticePropagator> &psi, const multi1d<Real> &masses,
                    const LatticePropagator &chi, int j_decay,
@@ -736,10 +782,16 @@ EigenOperator<LatticeFermion> *eigen=TheNamedObjMap::Instance().getData<EigenOpe
       QDPIO::cout << "Compute the multiple quark props" << std::endl;
       swatch.start();
 
-      multi1d<LatticeFermion> prop(params.mass.size() * Nc * Ns), src(Nc * Ns);
-      // prop.resize(params.mass.size() * Nc*Ns);
+      multi1d<LatticeFermion> prop_fr(params.mass.size() * Nc * Ns), src(Nc * Ns);
+      multi1d<LatticeFermion> prop_se(params.mass.size() * Nc * Ns);
+      multi1d<LatticeFermion> prop_high(params.mass.size() * Nc * Ns);
       for (int i = 0; i < Nc * Ns * (params.mass.size()); i++)
-        prop[i] = zero;
+	{
+		prop_fr[i]=zero;
+		prop_se[i]=zero;
+		prop_high=zero;
+	}
+	 
       for (int d = 0; d < Ns; d++)
         for (int c = 0; c < Nc; c++) {
           PropToFerm(quark_prop_source, src[Nc * d + c], c, d);
@@ -748,20 +800,41 @@ EigenOperator<LatticeFermion> *eigen=TheNamedObjMap::Instance().getData<EigenOpe
       quarkPropMult(quark_propagator, params.mass, quark_prop_source, j_decay,
                     params.param, ncg_had);
 	
-      inverter_h(ov, src, prop, params.mass, params.maxiter, params.cg_error,
+      inverter_h(ov, src, prop_high, params.mass, params.maxiter, params.cg_error,
                  params.flag_dc);
-	QDPIO::cout<<"RH_CHECK!"<<std::endl;
-      inverter_l(ov, src, prop, params.mass, ov.get_rho(), params.flag_dc);
+      inverter_l(ov, src, prop_fr,prop_se, params.mass, ov.get_rho(), params.flag_dc);
+	//Check the residue of full propagator
+     //Note that the source should be deflated 
+      if(params.flag_dc<=0){
+      check_full_residues(ov,src,prop_high,prop_fr,params.mass);
+      //multiply by the (1-D/2) factor	
+          Real rho=ov.get_rho();
+	   multi1d<LatticeFermion> src_tmp(Nc*Ns);
+  		deflation_ov(ov, src, src_tmp);
+	  for (int j=0; j<Nc*Ns;j++){
+          for (int i = 0; i < params.mass.size(); i++) 
+        prop_high[i*Nc*Ns+j] = (rho / (rho - params.mass[i] / 2.0)) *
+                             (prop_high[i*Nc*Ns+j] - src_tmp[j] / (2.0 * rho));
+      }
+      }
+     
+     
+     //The full inversion
+     for(int im=0;im<params.mass.size();im++)
+     for(int j=0;j<Nc*Ns;j++)
+     {
+	prop_high[im*Nc*Ns+j]=prop_high[im*Nc*Ns+j]+prop_fr[im*Nc*Ns+j]+prop_se[im*Nc*Ns+j];
+     }
+	
       for (int i = 0; i < params.mass.size(); i++) {
         LatticePropagator sol = zero;
         for (int d = 0; d < Ns; d++)
           for (int c = 0; c < Nc; c++) {
-            FermToProp(prop[d * Nc + c + Nc * Ns * i], sol, c, d);
+            FermToProp(prop_high[d * Nc + c + Nc * Ns * i], sol, c, d);
           }
         multi1d<DComplex> corr = Corr::contract_meson(
             sol, sol, Gamma(Ns * Ns - 1), Gamma(Ns * Ns - 1));
         for (int t = 0; t < QDP::Layout::lattSize()[Nd - 1]; t++) {
-          // for(int t=0;t<8;t++){
 
           QDPIO::cout << "CORR_ps:\t" << i << "\t" << corr[t] << std::endl;
         }
