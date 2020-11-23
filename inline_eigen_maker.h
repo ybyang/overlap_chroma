@@ -565,6 +565,7 @@ public:
 			(*this)(tmp,op[ind].vec,PLUS);
 			tmp=tmp-op[ind].val*op[ind].vec;
 			res=sqrt(norm2(tmp));
+			op[ind].residual.elem().elem().elem().elem()=toDouble(res);
 			if(Layout::primaryNode()) printf("Norm evec[%4d] bias = %13.5e ", ind, bias);
 			if(Layout::primaryNode()) printf(" eval[%4d] = %11.8f + I %10.8f, ||lambda vec - mat vec|| = %10.5e\n", 
 				ind,toDouble(real(op[ind].val)),toDouble(imag(op[ind].val)),toDouble(res));
@@ -588,16 +589,24 @@ public:
 		EigenOperator<T> &eigen=*this;
 		std::string file_eval=filename+".eigvals";
 		fprintf(stderr,"Saving eigensysterm ...\n");
-		FILE* fileEigval=fopen(file_eval.c_str(),"w");
-		fprintf(fileEigval, "Eigenvalues and eigenvectors for overlap.\n");
-		fprintf(fileEigval, "Each eigenvector is preceded by a line describing the eigenvalue.\n");
-		fprintf(fileEigval, "The residue is defined as norm(mat.vec-lambda.vec).\n");
-		fprintf(fileEigval, "The format is: a tag EIGV, the real and imaginary part of the eigenvalue and the residue.\n");
-		for(int iIndex = 0; iIndex < eigen.size(); iIndex++)
-			fprintf(fileEigval, "EIGV %+.15le\t%+.15le\t%.10le\n", toDouble(real(eigen[iIndex].val)),
-				toDouble(imag(eigen[iIndex].val)), toDouble(eigen[iIndex].residual));
-		fclose(fileEigval);
- 		fileEigval = NULL;
+		FILE* fileEigval=NULL;
+		if(Layout::primaryNode()){
+			fileEigval=fopen(file_eval.c_str(),"w");
+			fprintf(fileEigval, "Eigenvalues and eigenvectors for overlap.\n");
+			fprintf(fileEigval, "Each eigenvector is preceded by a line describing the eigenvalue.\n");
+			fprintf(fileEigval, "The residue is defined as norm(mat.vec-lambda.vec).\n");
+			fprintf(fileEigval, "The format is: a tag EIGV, the real and imaginary part of the eigenvalue and the residue.\n");
+		}
+		for(int iIndex = 0; iIndex < eigen.size(); iIndex++){
+			QMP_barrier();
+			double a = toDouble(real(eigen[iIndex].val));
+			double b = toDouble(imag(eigen[iIndex].val));
+			double Residual = toDouble(eigen[iIndex].residual);
+			if(Layout::primaryNode()) fprintf(fileEigval, "EIGV %+.15le\t%+.15le\t%.10le\n", a, b, Residual);
+			QMP_barrier();
+		}
+		if(Layout::primaryNode()) fclose(fileEigval);
+		fileEigval = NULL;
 
 		//save eigenvector
 		io_vec VEC(to_single, io_num);

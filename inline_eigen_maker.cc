@@ -280,6 +280,7 @@ void InlineEigenMaker::func(unsigned long update_no, XMLWriter &xml_out){
 				eigen->load(params.param.filename,params.param.io_num,false);
 			else
 				eigen->load(params.param.filename,params.param.io_num,true);
+			if(params.param.check_residual == true) eigen->check_residual(fuzz);
 		}
 		else{
 			if(Layout::numNodes()%params.param.io_num != 0){
@@ -287,12 +288,10 @@ void InlineEigenMaker::func(unsigned long update_no, XMLWriter &xml_out){
 				QDP_abort(1);
 			}
 			eigen->create_eigen(params);
+			if(params.param.check_residual == true) eigen->check_residual(fuzz);
 			QDPIO::cout << "to save.."<< std::endl;
 			eigen->save(params.param.filename,params.param.io_num,params.param.SingLe);
 		}
-	}
-	if (params.param.check_residual == true) {
-		eigen->check_residual(fuzz);
 	}
 	pop(xml_out); // EigenMaker
 	snoop.stop();
