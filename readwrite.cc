@@ -7,7 +7,7 @@ void adfseek(FILE *stream, int size){
 	int times = size / 1000000000;
 	int res = size % 1000000000;
 	for(int i=0; i<times; i++)
-		fseek(stream, times*1000000000, SEEK_CUR);
+		fseek(stream, 1000000000, SEEK_CUR);
 	fseek(stream, res, SEEK_CUR);
 }
 
@@ -43,18 +43,18 @@ io_vec::io_vec(bool _single, int io_num){
 }
 
 
-void io_vec::read(FILE* filehand, int idx=-1){
+void io_vec::read(FILE* filehand){
 	QMP_barrier();
 	if(single) readF(filehand);
-	else readD(filehand,idx);
+	else readD(filehand);
 	QMP_barrier();
 }
 
 
-void io_vec::write(FILE* filehand, int idx=-1){
+void io_vec::write(FILE* filehand){
 	QMP_barrier();
 	if(single) writeF(filehand);
-	else writeD(filehand,idx);
+	else writeD(filehand);
 	QMP_barrier();
 }
 

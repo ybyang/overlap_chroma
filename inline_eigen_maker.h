@@ -667,7 +667,7 @@ public:
 		if(VEC.para.io_flag) fileVec = fopen(vecname.c_str(),"rb");
 		else fileVec = NULL;
 		for(int i=0; i<eigen.size(); i++){
-			VEC.read(fileVec,i);
+			VEC.read(fileVec);
 			if(from_single) eigen[i].vec=U*VEC.fieldF;
 			else eigen[i].vec=U*VEC.fieldD;
 		}
