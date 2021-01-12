@@ -3,6 +3,15 @@
 namespace Chroma
 {
 
+void adfseek(FILE *stream, int size){
+	int times = size / 1000000000;
+	int res = size % 1000000000;
+	for(int i=0; i<times; i++)
+		fseek(stream, times*1000000000, SEEK_CUR);
+	fseek(stream, res, SEEK_CUR);
+}
+
+
 io_vec::io_vec(bool _single, int io_num){
 	single = _single;
 	para.readtime1.reset();
@@ -50,7 +59,7 @@ void io_vec::write(FILE* filehand, int idx=-1){
 }
 
 
-void io_vec::readD(FILE* filehand, int vec_idx=-1){
+void io_vec::readD(FILE* filehand){
 
 	typedef infermD inferm;
 	typedef REAL64 little;
@@ -65,22 +74,10 @@ void io_vec::readD(FILE* filehand, int vec_idx=-1){
 		fout = (inferm*) malloc(para.vvol*para.memsize);
 		para.readtime1.start();
 		buff = (char*) malloc(para.vvol*para.memsize);
-		if(vec_idx == -1)
 		for(int j=0;j<2*Ns*Nc;j++){
-			fseek(filehand, para.io_idx*para.vvol*para.little_size, SEEK_CUR);
+			adfseek(filehand, para.io_idx*para.vvol*para.little_size);
 			fread(buff+j*para.vvol*para.little_size, 1, para.vvol*para.little_size, filehand);
-			fseek(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.little_size, SEEK_CUR);
-		}
-		else{
-			if(vec_idx!=0) fseek(filehand,para.memsize*para.vvol,SEEK_SET);
-			else fseek(filehand,0,SEEK_SET);
-			for(int j=1;j<vec_idx*para.io_num;j++)
-				fseek(filehand,para.vvol*para.memsize,SEEK_CUR);
-			for(int j=0;j<2*Ns*Nc;j++){
-				fseek(filehand,(j*para.io_num+para.io_idx)*para.vvol*para.little_size,SEEK_CUR);
-				fread(buff+j*para.vvol*para.little_size, 1, para.vvol*para.little_size, filehand);
-				fseek(filehand,-(j*para.io_num+para.io_idx+1)*para.vvol*para.little_size,SEEK_CUR);
-			}
+			adfseek(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.little_size);
 		}
 		para.readtime1.stop();
 		para.readtime2.start();
@@ -144,9 +141,9 @@ void io_vec::readF(FILE* filehand){
 	if(para.io_flag){
 		fout = (inferm*) malloc(para.vvol*para.memsize);
 		para.readtime1.start();
-		fseek(filehand, para.io_idx*para.vvol*para.memsize, SEEK_CUR);
+		adfseek(filehand, para.io_idx*para.vvol*para.memsize);
 		fread((char*)fout, 1, para.vvol*para.memsize, filehand);
-		fseek(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.memsize, SEEK_CUR);
+		adfseek(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.memsize);
 		para.readtime1.stop();
 		para.readtime2.start();
 		QDPUtil::byte_swap((char*)fout, para.little_size, 2*Ns*Nc*para.vvol);
@@ -177,7 +174,7 @@ void io_vec::readF(FILE* filehand){
 }
 
 
-void io_vec::writeD(FILE* filehand, int vec_idx=-1){
+void io_vec::writeD(FILE* filehand){
 
 	typedef infermD inferm;
 	typedef REAL64 little;
@@ -236,22 +233,10 @@ void io_vec::writeD(FILE* filehand, int vec_idx=-1){
 		QDPUtil::byte_swap(buff, para.little_size, 2*Ns*Nc*para.vvol);
 		para.readtime2.stop();
 		para.readtime1.start();
-		if(vec_idx == -1)
 		for(int j=0;j<2*Ns*Nc;j++){
-			fseek(filehand, para.io_idx*para.vvol*para.little_size, SEEK_CUR);
+			adfseek(filehand, para.io_idx*para.vvol*para.little_size);
 			fwrite(buff+j*para.vvol*para.little_size, 1, para.vvol*para.little_size, filehand);
-			fseek(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.little_size, SEEK_CUR);
-		}
-		else{
-			if(vec_idx!=0) fseek(filehand,para.memsize*para.vvol,SEEK_SET);
-			else fseek(filehand,0,SEEK_SET);
-			for(int j=1;j<vec_idx*para.io_num;j++)
-				fseek(filehand,para.vvol*para.memsize,SEEK_CUR);
-			for(int j=0;j<2*Ns*Nc;j++){
-				fseek(filehand,(j*para.io_num+para.io_idx)*para.vvol*para.little_size,SEEK_CUR);
-				fwrite(buff+j*para.vvol*para.little_size, 1, para.vvol*para.little_size, filehand);
-				fseek(filehand,-(j*para.io_num+para.io_idx+1)*para.vvol*para.little_size,SEEK_CUR);
-			}
+			adfseek(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.little_size);
 		}
 		para.readtime1.stop();
 		free(buff);
@@ -295,9 +280,9 @@ void io_vec::writeF(FILE* filehand){
 		QDPUtil::byte_swap((char*)fout, para.little_size, 2*Ns*Nc*para.vvol);
 		para.readtime2.stop();
 		para.readtime1.start();
-		fseek(filehand, para.io_idx*para.vvol*para.memsize, SEEK_CUR);
+		adfseek(filehand, para.io_idx*para.vvol*para.memsize);
 		fwrite((char*)fout, 1, para.vvol*para.memsize, filehand);
-		fseek(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.memsize, SEEK_CUR);
+		adfseek(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.memsize);
 		para.readtime1.stop();
 		free(fout);
 		fout = NULL;

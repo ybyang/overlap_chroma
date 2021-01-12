@@ -52,15 +52,15 @@ struct io_vec
 
 	io_vec(bool _single, int io_num);
 
-	void read(FILE* filehand, int idx=-1);
+	void read(FILE* filehand);
 
-	void write(FILE* filehand, int idx=-1);
+	void write(FILE* filehand);
 
-	void readD(FILE* filehand, int idx=-1);
+	void readD(FILE* filehand);
 
 	void readF(FILE* filehand);
 
-	void writeD(FILE* filehand, int idx=-1);
+	void writeD(FILE* filehand);
 
 	void writeF(FILE* filehand);
 };
