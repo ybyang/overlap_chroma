@@ -1,15 +1,11 @@
 #ifndef READWRITE_H
 #define READWRITE_H
 
-#include "chromabase.h"
-#include "meas/inline/abs_inline_measurement.h"
-#include "linearop.h"
-#include "meas/inline/io/named_objmap.h"
-#include "io/xml_group_reader.h"
+#undef _FILE_OFFSET_BITS
+#define _FILE_OFFSET_BITS 64
+
 #include "actions/ferm/fermstates/fermstates.h"
-#include "actions/ferm/fermbcs/fermbc_factory_w.h"
 #include <stdio.h>
-#include "util/ferm/diractodr.h"
 #include "util/ferm/transf.h"
 
 

@@ -3,14 +3,6 @@
 namespace Chroma
 {
 
-void adfseek(FILE *stream, int size){
-	int times = size / 1000000000;
-	int res = size % 1000000000;
-	for(int i=0; i<times; i++)
-		fseek(stream, 1000000000, SEEK_CUR);
-	fseek(stream, res, SEEK_CUR);
-}
-
 
 io_vec::io_vec(bool _single, int io_num){
 	single = _single;
@@ -75,9 +67,9 @@ void io_vec::readD(FILE* filehand){
 		para.readtime1.start();
 		buff = (char*) malloc(para.vvol*para.memsize);
 		for(int j=0;j<2*Ns*Nc;j++){
-			adfseek(filehand, para.io_idx*para.vvol*para.little_size);
+			fseeko(filehand, para.io_idx*para.vvol*para.little_size, SEEK_CUR);
 			fread(buff+j*para.vvol*para.little_size, 1, para.vvol*para.little_size, filehand);
-			adfseek(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.little_size);
+			fseeko(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.little_size, SEEK_CUR);
 		}
 		para.readtime1.stop();
 		para.readtime2.start();
@@ -141,9 +133,9 @@ void io_vec::readF(FILE* filehand){
 	if(para.io_flag){
 		fout = (inferm*) malloc(para.vvol*para.memsize);
 		para.readtime1.start();
-		adfseek(filehand, para.io_idx*para.vvol*para.memsize);
+		fseeko(filehand, para.io_idx*para.vvol*para.memsize, SEEK_CUR);
 		fread((char*)fout, 1, para.vvol*para.memsize, filehand);
-		adfseek(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.memsize);
+		fseeko(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.memsize, SEEK_CUR);
 		para.readtime1.stop();
 		para.readtime2.start();
 		QDPUtil::byte_swap((char*)fout, para.little_size, 2*Ns*Nc*para.vvol);
@@ -234,9 +226,9 @@ void io_vec::writeD(FILE* filehand){
 		para.readtime2.stop();
 		para.readtime1.start();
 		for(int j=0;j<2*Ns*Nc;j++){
-			adfseek(filehand, para.io_idx*para.vvol*para.little_size);
+			fseeko(filehand, para.io_idx*para.vvol*para.little_size, SEEK_CUR);
 			fwrite(buff+j*para.vvol*para.little_size, 1, para.vvol*para.little_size, filehand);
-			adfseek(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.little_size);
+			fseeko(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.little_size, SEEK_CUR);
 		}
 		para.readtime1.stop();
 		free(buff);
@@ -280,9 +272,9 @@ void io_vec::writeF(FILE* filehand){
 		QDPUtil::byte_swap((char*)fout, para.little_size, 2*Ns*Nc*para.vvol);
 		para.readtime2.stop();
 		para.readtime1.start();
-		adfseek(filehand, para.io_idx*para.vvol*para.memsize);
+		fseeko(filehand, para.io_idx*para.vvol*para.memsize, SEEK_CUR);
 		fwrite((char*)fout, 1, para.vvol*para.memsize, filehand);
-		adfseek(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.memsize);
+		fseeko(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.memsize, SEEK_CUR);
 		para.readtime1.stop();
 		free(fout);
 		fout = NULL;
