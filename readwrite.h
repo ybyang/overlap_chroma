@@ -1,9 +1,6 @@
 #ifndef READWRITE_H
 #define READWRITE_H
 
-#undef _FILE_OFFSET_BITS
-#define _FILE_OFFSET_BITS 64
-
 #include "actions/ferm/fermstates/fermstates.h"
 #include <stdio.h>
 #include "util/ferm/transf.h"
@@ -15,7 +12,7 @@ namespace Chroma
 struct io_para
 {
 	int io_num;
-	int Vvol;
+	long long Vvol;
 	multi1d<int> latsize;
 	int this_node;
 	int node_nums;

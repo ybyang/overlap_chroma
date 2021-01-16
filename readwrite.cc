@@ -1,7 +1,35 @@
 #include "readwrite.h"
+#define max 1024*1024*1024
+
 
 namespace Chroma
 {
+
+void adfseek(FILE *stream, long long size, int fromwhere){
+	long long times = size / max;
+	long long res = size % max;
+	for(long long i=0; i<times; i++)
+	fseek(stream, max, SEEK_CUR);
+	fseek(stream, res, SEEK_CUR);
+}
+
+
+void adfread(char *buff, int small, long long size, FILE* stream){
+	int times = size / max;
+	int res = size % max;
+	for(int i=0; i<times; i++)
+		fread(buff+i*max,small,max,stream);
+	fread(buff+times*max,small,res,stream);
+}
+
+
+void adfwrite(char *buff, int small, long long size, FILE* stream){
+	int times = size / max;
+	int res = size % max;
+	for(int i=0; i<times; i++)
+		fwrite(buff+i*max,small,max,stream);
+	fwrite(buff+times*max,small,res,stream);
+}
 
 
 io_vec::io_vec(bool _single, int io_num){
@@ -67,9 +95,9 @@ void io_vec::readD(FILE* filehand){
 		para.readtime1.start();
 		buff = (char*) malloc(para.vvol*para.memsize);
 		for(int j=0;j<2*Ns*Nc;j++){
-			fseeko(filehand, para.io_idx*para.vvol*para.little_size, SEEK_CUR);
-			fread(buff+j*para.vvol*para.little_size, 1, para.vvol*para.little_size, filehand);
-			fseeko(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.little_size, SEEK_CUR);
+			adfseek(filehand, para.io_idx*para.vvol*para.little_size, SEEK_CUR);
+			adfread(buff+j*para.vvol*para.little_size, 1, para.vvol*para.little_size, filehand);
+			adfseek(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.little_size, SEEK_CUR);
 		}
 		para.readtime1.stop();
 		para.readtime2.start();
@@ -109,7 +137,7 @@ void io_vec::readD(FILE* filehand){
 		para.readtime6.start();
 		if(para.this_node == node)
 		for(int j=0;j<para.xinz;j++){
-			int linear = Layout::linearSiteIndex(crtesn(IO_idx*para.vvol+site+j, para.latsize));
+			long long linear = Layout::linearSiteIndex(crtesn(IO_idx*para.vvol+site+j, para.latsize));
 			memcpy((char *)&(fieldD.elem(0))+linear*para.memsize, fin+j*para.memsize, para.memsize);
 		}
 		para.readtime6.stop();
@@ -133,9 +161,9 @@ void io_vec::readF(FILE* filehand){
 	if(para.io_flag){
 		fout = (inferm*) malloc(para.vvol*para.memsize);
 		para.readtime1.start();
-		fseeko(filehand, para.io_idx*para.vvol*para.memsize, SEEK_CUR);
-		fread((char*)fout, 1, para.vvol*para.memsize, filehand);
-		fseeko(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.memsize, SEEK_CUR);
+		adfseek(filehand, para.io_idx*para.vvol*para.memsize, SEEK_CUR);
+		adfread((char*)fout, 1, para.vvol*para.memsize, filehand);
+		adfseek(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.memsize, SEEK_CUR);
 		para.readtime1.stop();
 		para.readtime2.start();
 		QDPUtil::byte_swap((char*)fout, para.little_size, 2*Ns*Nc*para.vvol);
@@ -153,7 +181,7 @@ void io_vec::readF(FILE* filehand){
 		para.readtime6.start();
 		if(para.this_node == node)
 		for(int j=0;j<para.xinz;j++){
-			int linear = Layout::linearSiteIndex(crtesn(IO_idx*para.vvol+site+j, para.latsize));
+			long long linear = Layout::linearSiteIndex(crtesn(IO_idx*para.vvol+site+j, para.latsize));
 			memcpy((char *)&(fieldF.elem(0))+linear*para.memsize, fin+j*para.memsize, para.memsize);
 		}
 		para.readtime6.stop();
@@ -187,7 +215,7 @@ void io_vec::writeD(FILE* filehand){
 		para.readtime6.start();
 		if(para.this_node == node)
 		for(int j=0;j<para.xinz;j++){
-			int linear = Layout::linearSiteIndex(crtesn(IO_idx*para.vvol+site+j, para.latsize));
+			long long linear = Layout::linearSiteIndex(crtesn(IO_idx*para.vvol+site+j, para.latsize));
 			memcpy(fin+j*para.memsize, (char *)&(fieldD.elem(0))+linear*para.memsize, para.memsize);
 		}
 		para.readtime6.stop();
@@ -226,9 +254,9 @@ void io_vec::writeD(FILE* filehand){
 		para.readtime2.stop();
 		para.readtime1.start();
 		for(int j=0;j<2*Ns*Nc;j++){
-			fseeko(filehand, para.io_idx*para.vvol*para.little_size, SEEK_CUR);
-			fwrite(buff+j*para.vvol*para.little_size, 1, para.vvol*para.little_size, filehand);
-			fseeko(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.little_size, SEEK_CUR);
+			adfseek(filehand, para.io_idx*para.vvol*para.little_size, SEEK_CUR);
+			adfwrite(buff+j*para.vvol*para.little_size, 1, para.vvol*para.little_size, filehand);
+			adfseek(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.little_size, SEEK_CUR);
 		}
 		para.readtime1.stop();
 		free(buff);
@@ -256,7 +284,7 @@ void io_vec::writeF(FILE* filehand){
 		para.readtime6.start();
 		if(para.this_node == node)
 		for(int j=0;j<para.xinz;j++){
-			int linear = Layout::linearSiteIndex(crtesn(IO_idx*para.vvol+site+j, para.latsize));
+			long long linear = Layout::linearSiteIndex(crtesn(IO_idx*para.vvol+site+j, para.latsize));
 			memcpy(fin+j*para.memsize, (char *)&(fieldF.elem(0))+linear*para.memsize, para.memsize);
 		}
 		para.readtime6.stop();
@@ -272,9 +300,9 @@ void io_vec::writeF(FILE* filehand){
 		QDPUtil::byte_swap((char*)fout, para.little_size, 2*Ns*Nc*para.vvol);
 		para.readtime2.stop();
 		para.readtime1.start();
-		fseeko(filehand, para.io_idx*para.vvol*para.memsize, SEEK_CUR);
-		fwrite((char*)fout, 1, para.vvol*para.memsize, filehand);
-		fseeko(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.memsize, SEEK_CUR);
+		adfseek(filehand, para.io_idx*para.vvol*para.memsize, SEEK_CUR);
+		adfwrite((char*)fout, 1, para.vvol*para.memsize, filehand);
+		adfseek(filehand, (para.io_num-para.io_idx-1)*para.vvol*para.memsize, SEEK_CUR);
 		para.readtime1.stop();
 		free(fout);
 		fout = NULL;
