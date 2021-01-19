@@ -6,9 +6,9 @@ namespace Chroma
 {
 
 void adfseek(FILE *stream, long long size, int fromwhere){
-	long long times = size / max;
-	long long res = size % max;
-	for(long long i=0; i<times; i++)
+	int times = size / max;
+	int res = size % max;
+	for(int i=0; i<times; i++)
 	fseek(stream, max, SEEK_CUR);
 	fseek(stream, res, SEEK_CUR);
 }
