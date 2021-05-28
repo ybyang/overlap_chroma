@@ -1,5 +1,5 @@
 #include "readwrite.h"
-#define max 1024*1024*1024
+#define max (1024*1024*1024)
 
 
 namespace Chroma
