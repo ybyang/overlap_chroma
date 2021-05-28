@@ -599,7 +599,7 @@ public:
 			double a = toDouble(real(eigen[iIndex].val));
 			double b = toDouble(imag(eigen[iIndex].val));
 			double Residual = toDouble(eigen[iIndex].residual);
-			if(Layout::primaryNode()) fprintf(fileEigval, "EIGV %+.15le\t%+.15le\t%.10le\n", a, b, Residual);
+			fprintf(fileEigval, "EIGV %+.15le\t%+.15le\t%.10le\n", a, b, Residual);
 		}
 		fclose(fileEigval);
 		fileEigval = NULL;
