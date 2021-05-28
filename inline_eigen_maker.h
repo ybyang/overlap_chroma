@@ -590,22 +590,18 @@ public:
 		std::string file_eval=filename+".eigvals";
 		fprintf(stderr,"Saving eigensysterm ...\n");
 		FILE* fileEigval=NULL;
-		if(Layout::primaryNode()){
-			fileEigval=fopen(file_eval.c_str(),"w");
-			fprintf(fileEigval, "Eigenvalues and eigenvectors for overlap.\n");
-			fprintf(fileEigval, "Each eigenvector is preceded by a line describing the eigenvalue.\n");
-			fprintf(fileEigval, "The residue is defined as norm(mat.vec-lambda.vec).\n");
-			fprintf(fileEigval, "The format is: a tag EIGV, the real and imaginary part of the eigenvalue and the residue.\n");
-		}
+		fileEigval=fopen(file_eval.c_str(),"w");
+		fprintf(fileEigval, "Eigenvalues and eigenvectors for overlap.\n");
+		fprintf(fileEigval, "Each eigenvector is preceded by a line describing the eigenvalue.\n");
+		fprintf(fileEigval, "The residue is defined as norm(mat.vec-lambda.vec).\n");
+		fprintf(fileEigval, "The format is: a tag EIGV, the real and imaginary part of the eigenvalue and the residue.\n");
 		for(int iIndex = 0; iIndex < eigen.size(); iIndex++){
-			QMP_barrier();
 			double a = toDouble(real(eigen[iIndex].val));
 			double b = toDouble(imag(eigen[iIndex].val));
 			double Residual = toDouble(eigen[iIndex].residual);
 			if(Layout::primaryNode()) fprintf(fileEigval, "EIGV %+.15le\t%+.15le\t%.10le\n", a, b, Residual);
-			QMP_barrier();
 		}
-		if(Layout::primaryNode()) fclose(fileEigval);
+		fclose(fileEigval);
 		fileEigval = NULL;
 
 		//save eigenvector
